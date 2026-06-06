@@ -3,66 +3,124 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>美容室 予約画面</title>
-  <!-- LINEのLIFFを動かすためのライブラリ -->
+  <title>美容室 予約カレンダー</title>
   <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js"></script>
   <style>
-    body { font-family: sans-serif; padding: 20px; background-color: #f9f9f9; }
-    .btn { display: block; width: 100%; padding: 15px; margin: 10px 0; background: #28a745; color: white; text-align: center; border-radius: 5px; text-decoration: none; font-weight: bold; border: none; cursor: pointer; }
-    .info { background: white; padding: 15px; border-radius: 5px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+    body { font-family: sans-serif; margin: 0; padding: 10px; background-color: #f9f9f9; color: #333; }
+    .info-box { background: white; padding: 12px; border-radius: 8px; margin-bottom: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); font-size: 14px; }
+    #calendar { background: white; padding: 10px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); margin-bottom: 20px; }
+    /* カレンダーの日曜日・土曜日の色調整 */
+    .fc-day-sun .fc-col-header-cell-cushion { color: red; }
+    .fc-day-sat .fc-col-header-cell-cushion { color: blue; }
+    .fc-event { cursor: pointer; }
+    /* 予約確認エリア */
+    .selection-box { background: #e9f7ef; border: 1px solid #28a745; padding: 15px; border-radius: 8px; text-align: center; display: none; }
+    .selection-text { font-size: 16px; font-weight: bold; margin-bottom: 10px; color: #1e7e34; }
+    .btn { display: block; width: 100%; padding: 15px; background: #28a745; color: white; text-align: center; border-radius: 5px; font-weight: bold; border: none; cursor: pointer; font-size: 16px; }
   </style>
 </head>
 <body>
 
-  <h2>美容室予約テスト</h2>
-  
-  <div class="info">
-    <p>ようこそ、<span id="userName">読み込み中...</span> 様</p>
-    <p>あなたのLINE ID: <br><small id="userId">-</small></p>
+  <div class="info-box">
+    <strong>ようこそ、<span id="userName">読み込み中...</span> 様</strong><br>
+    <span style="font-size: 12px; color: #666;">下のご希望の日時（時間枠）をタップしてください。</span>
   </div>
 
-  <!-- テスト用の簡易予約ボタン（本来はここにカレンダーが入ります） -->
-  <button class="btn" onclick="submitReservation()">【テスト】4月1日 10:00で予約する</button>
+  <div id="calendar"></div>
+
+  <div id="selectionBox" class="selection-box">
+    <div id="selectionText" class="selection-text"></div>
+    <button class="btn" onclick="submitReservation()">この日時で予約を確定する</button>
+  </div>
 
   <script>
     let userProfile = null;
+    let selectedSlot = null;
 
-    // LIFFの初期化
+    // 1. LINE（LIFF）の初期化
     liff.init({ liffId: "2010109198-rUyIvyiZ" })
       .then(() => {
         if (!liff.isLoggedIn()) {
           liff.login();
         } else {
-          // ログイン済みならプロフィールを取得
           liff.getProfile().then(profile => {
             userProfile = profile;
             document.getElementById("userName").innerText = profile.displayName;
-            document.getElementById("userId").innerText = profile.userId;
+            // LINEの情報が読めたらカレンダーを組み立てる
+            initCalendar();
           });
         }
       })
       .catch((err) => { console.error("LIFF初期化エラー", err); });
 
-    // 予約データをGASに送信する関数
-    function submitReservation() {
-      if (!userProfile) {
-        alert("ユーザー情報の取得中です。少し待ってから再度お試しください。");
-        return;
-      }
+    // 2. カレンダーの組み立て
+    function initCalendar() {
+      const calendarEl = document.getElementById('calendar');
+      const calendar = new FullCalendar.Calendar(calendarEl, {
+        initialView: 'timeGridThreeDay', // スマホで見やすい3日表示
+        views: {
+          timeGridThreeDay: { type: 'timeGrid', duration: { days: 3 }, buttonText: '3日間' }
+        },
+        locale: 'ja', // 日本語化
+        allDaySlot: false, // 終日スロットを非表示
+        slotMinTime: '09:00:00', // 営業時間（開始）
+        slotMaxTime: '19:00:00', // 営業時間（終了）
+        height: 'auto',
+        contentHeight: 'auto',
+        headerToolbar: { left: 'prev', center: 'title', right: 'next' },
+        
+        // 【テスト用】タップできる空き時間枠を直接並べています（後から松プランで自動化可能）
+        events: [
+          { title: '空き', start: '2026-06-08T10:00:00', end: '2026-06-08T11:00:00', color: '#40E0D0' },
+          { title: '空き', start: '2026-06-08T13:00:00', end: '2026-06-08T14:00:00', color: '#40E0D0' },
+          { title: '空き', start: '2026-06-09T11:00:00', end: '2026-06-09T12:00:00', color: '#40E0D0' },
+          { title: '空き', start: '2026-06-09T15:00:00', end: '2026-06-09T16:00:00', color: '#40E0D0' },
+          { title: '空き', start: '2026-06-10T10:00:00', end: '2026-06-10T11:00:00', color: '#40E0D0' }
+        ],
+        
+        // 空き時間をタップしたときの動き
+        eventClick: function(info) {
+          selectedSlot = info.event;
+          
+          // 表示用に日時をきれいに変換
+          const start = new Date(selectedSlot.start);
+          const dateStr = (start.getMonth() + 1) + '月' + start.getDate() + '日';
+          const timeStr = start.getHours() + ':' + String(start.getMinutes()).padStart(2, '0');
+          
+          // ボタンエリアを表示して文字を書き換える
+          document.getElementById("selectionText").innerText = '選択中：' + dateStr + ' ' + timeStr + '〜';
+          document.getElementById("selectionBox").style.display = 'block';
+          
+          // 画面を一番下までスクロールしてボタンを見せる
+          window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+        }
+      });
+      calendar.render();
+    }
 
-      // テスト用の予約データ
+    // 3. GASに予約データを送信する関数
+    function submitReservation() {
+      if (!userProfile || !selectedSlot) return;
+
+      const start = new Date(selectedSlot.start);
+      const end = new Date(selectedSlot.end);
+      
+      // 日時を GAS が読み込める形式（YYYY/MM/DD HH:MM）に変換
+      const startTimeStr = start.getFullYear() + '/' + (start.getMonth() + 1) + '/' + start.getDate() + ' ' + start.getHours() + ':' + String(start.getMinutes()).padStart(2, '0');
+      const endTimeStr = end.getFullYear() + '/' + (end.getMonth() + 1) + '/' + end.getDate() + ' ' + end.getHours() + ':' + String(end.getMinutes()).padStart(2, '0');
+
       const reservationData = {
-        shopId: "ST001",
-        staffId: "S001",
-        startTime: "2026/04/01 10:00",
-        endTime: "2026/04/01 11:00",
-        name: userProfile.displayName, // LINEの登録名
-        lineUserId: userProfile.userId, // LINEのユーザーID
-        menu: "カット（テスト）"
+        shopId: "ST001",   // 店舗ID（固定値）
+        staffId: "S001",  // 担当者ID（固定値）
+        startTime: startTimeStr,
+        endTime: endTimeStr,
+        name: userProfile.displayName,
+        lineUserId: userProfile.userId,
+        menu: "カット（竹プラン）" // メニュー（固定値）
       };
 
-      // GAS（自分自身のウェブアプリURL）にデータを送信
-      // ★先ほどのGASのウェブアプリURLに書き換えてください
+      // ★ご自身のGASウェブアプリURLに書き換えてください
       fetch("https://script.google.com/macros/s/AKfycbzraDS-yzVvbrx-CTRO0yvhBC8hTmzyet8N0dfNUOxOrAD3Y5KsBGDWT0iF9VuZN60BIw/exec", {
         method: "POST",
         body: JSON.stringify(reservationData)
@@ -70,8 +128,8 @@
       .then(response => response.json())
       .then(data => {
         if (data.status === "success") {
-          alert("予約が完了しました！LINEメッセージをご確認ください。");
-          liff.closeWindow(); // 画面を閉じる
+          alert("ご予約が完了しました！LINEメッセージをご確認ください。");
+          liff.closeWindow();
         } else {
           alert("予約に失敗しました。");
         }
