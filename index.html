@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>美容室 予約画面</title>
+  <!-- LINEのLIFFを動かすためのライブラリ -->
+  <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+  <style>
+    body { font-family: sans-serif; padding: 20px; background-color: #f9f9f9; }
+    .btn { display: block; width: 100%; padding: 15px; margin: 10px 0; background: #28a745; color: white; text-align: center; border-radius: 5px; text-decoration: none; font-weight: bold; border: none; cursor: pointer; }
+    .info { background: white; padding: 15px; border-radius: 5px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+  </style>
+</head>
+<body>
+
+  <h2>美容室予約テスト</h2>
+  
+  <div class="info">
+    <p>ようこそ、<span id="userName">読み込み中...</span> 様</p>
+    <p>あなたのLINE ID: <br><small id="userId">-</small></p>
+  </div>
+
+  <!-- テスト用の簡易予約ボタン（本来はここにカレンダーが入ります） -->
+  <button class="btn" onclick="submitReservation()">【テスト】4月1日 10:00で予約する</button>
+
+  <script>
+    let userProfile = null;
+
+    // LIFFの初期化
+    liff.init({ liffId: "2010109198-rUyIvyiZ" })
+      .then(() => {
+        if (!liff.isLoggedIn()) {
+          liff.login();
+        } else {
+          // ログイン済みならプロフィールを取得
+          liff.getProfile().then(profile => {
+            userProfile = profile;
+            document.getElementById("userName").innerText = profile.displayName;
+            document.getElementById("userId").innerText = profile.userId;
+          });
+        }
+      })
+      .catch((err) => { console.error("LIFF初期化エラー", err); });
+
+    // 予約データをGASに送信する関数
+    function submitReservation() {
+      if (!userProfile) {
+        alert("ユーザー情報の取得中です。少し待ってから再度お試しください。");
+        return;
+      }
+
+      // テスト用の予約データ
+      const reservationData = {
+        shopId: "ST001",
+        staffId: "S001",
+        startTime: "2026/04/01 10:00",
+        endTime: "2026/04/01 11:00",
+        name: userProfile.displayName, // LINEの登録名
+        lineUserId: userProfile.userId, // LINEのユーザーID
+        menu: "カット（テスト）"
+      };
+
+      // GAS（自分自身のウェブアプリURL）にデータを送信
+      // ★先ほどのGASのウェブアプリURLに書き換えてください
+      fetch("https://script.google.com/macros/s/AKfycbzraDS-yzVvbrx-CTRO0yvhBC8hTmzyet8N0dfNUOxOrAD3Y5KsBGDWT0iF9VuZN60BIw/exec", {
+        method: "POST",
+        body: JSON.stringify(reservationData)
+      })
+      .then(response => response.json())
+      .then(data => {
+        if (data.status === "success") {
+          alert("予約が完了しました！LINEメッセージをご確認ください。");
+          liff.closeWindow(); // 画面を閉じる
+        } else {
+          alert("予約に失敗しました。");
+        }
+      })
+      .catch(error => {
+        console.error("エラー:", error);
+        alert("通信エラーが発生しました。");
+      });
+    }
+  </script>
+</body>
+</html>
