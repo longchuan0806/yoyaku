@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>美容室 予約システム（松プラン連動版）</title>
+  <title>美容室 予約システム（松プラン完全版）</title>
   <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js"></script>
   <style>
@@ -60,11 +60,11 @@
     let userProfile = null;
     let selectedSlot = null;
     let calendar = null;
+    let masterMenus = [];
     
-    // ★あなた専用のGASウェブアプリURL
     const GAS_URL = "https://script.google.com/macros/s/AKfycbzraDS-yzVvbrx-CTRO0yvhBC8hTmzyet8N0dfNUOxOrAD3Y5KsBGDWT0iF9VuZN60BIw/exec";
 
-    // 1. LINE（LIFF）の初期化
+    // LINE初期化
     liff.init({ liffId: "2010109198-rUyIvyiZ" })
       .then(() => {
         if (!liff.isLoggedIn()) {
@@ -73,49 +73,40 @@
           liff.getProfile().then(profile => {
             userProfile = profile;
             document.getElementById("userName").innerText = profile.displayName;
-            // LINEが読めたら、スプレッドシートのデータを引っ張ってくる
             fetchMasterData();
           });
         }
       })
       .catch((err) => { console.error("LIFF初期化エラー", err); });
 
-    // 2. GASからスプレッドシートの台帳データを自動読み込みしてボタンに入れる関数
+    // 台帳データの読み込み
     function fetchMasterData() {
       fetch(GAS_URL)
         .then(response => response.json())
         .then(data => {
-          // 店舗ボタンの中身を自動作成
+          masterMenus = data.menus; // 時間計算用にメニューデータを保存
+
           const shopSelect = document.getElementById("shopSelect");
           data.shops.forEach(shop => {
             let opt = document.createElement("option");
-            opt.value = shop.id;
-            opt.textContent = shop.name;
-            shopSelect.appendChild(opt);
+            opt.value = shop.id; opt.textContent = shop.name; shopSelect.appendChild(opt);
           });
 
-          // スタッフボタンの中身を自動作成
           const staffSelect = document.getElementById("staffSelect");
           data.staffs.forEach(staff => {
             let opt = document.createElement("option");
-            opt.value = staff.id;
-            opt.textContent = staff.name;
-            staffSelect.appendChild(opt);
+            opt.value = staff.id; opt.textContent = staff.name; staffSelect.appendChild(opt);
           });
 
-          // メニューボタンの中身を自動作成
           const menuSelect = document.getElementById("menuSelect");
           data.menus.forEach(menu => {
             let opt = document.createElement("option");
-            opt.value = menu.id;
-            opt.textContent = menu.name;
-            menuSelect.appendChild(opt);
+            opt.value = menu.id; opt.textContent = menu.name; menuSelect.appendChild(opt);
           });
-        })
-        .catch(err => { console.error("データ読み込みエラー:", err); });
+        });
     }
 
-    // 3. 3つの条件が選ばれたかチェック
+    // ボタン選択のチェック
     function checkSelections() {
       const shop = document.getElementById("shopSelect").value;
       const staff = document.getElementById("staffSelect").value;
@@ -123,20 +114,34 @@
       const calendarEl = document.getElementById('calendar');
 
       if (shop && staff && menu) {
-        calendarEl.style.display = 'block';
-        if (!calendar) {
-          initCalendar();
-        } else {
-          calendar.render();
-        }
+        // 選ばれたメニューの「所要時間」を探す
+        const selectedMenu = masterMenus.find(m => m.id === menu);
+        const duration = selectedMenu ? selectedMenu.duration : 60;
+
+        // シフト表からリアルタイムに空き枠をもらってくる
+        fetch(GAS_URL + "?staffId=" + staff + "&duration=" + duration)
+          .then(res => res.json())
+          .then(events => {
+            calendarEl.style.with = "100%";
+            calendarEl.style.display = 'block';
+            
+            if (!calendar) {
+              initCalendar(events);
+            } else {
+              // 古い予定を消して、新しい空き枠をカレンダーに入れ直す
+              calendar.removeAllEvents();
+              calendar.addEventSource(events);
+              calendar.render();
+            }
+          });
       } else {
         calendarEl.style.display = 'none';
         document.getElementById("selectionBox").style.display = 'none';
       }
     }
 
-    // 4. カレンダーの組み立て
-    function initCalendar() {
+    // カレンダー表示
+    function initCalendar(initialEvents) {
       const calendarEl = document.getElementById('calendar');
       calendar = new FullCalendar.Calendar(calendarEl, {
         initialView: 'timeGridThreeDay',
@@ -147,13 +152,7 @@
         slotMaxTime: '19:00:00',
         height: 'auto',
         headerToolbar: { left: 'prev', center: 'title', right: 'next' },
-        
-        // テスト用の空き時間枠（ここも次のステップで完全自動化します）
-        events: [
-          { title: '空き', start: '2026-06-08T10:00:00', end: '2026-06-08T11:00:00', color: '#40E0D0' },
-          { title: '空き', start: '2026-06-08T14:00:00', end: '2026-06-08T15:00:00', color: '#40E0D0' },
-          { title: '空き', start: '2026-06-09T11:00:00', end: '2026-06-09T12:00:00', color: '#40E0D0' }
-        ],
+        events: initialEvents, // シフトから計算された本物の空き枠
         
         eventClick: function(info) {
           selectedSlot = info.event;
@@ -169,7 +168,7 @@
       calendar.render();
     }
 
-    // 5. データを送信
+    // 予約送信
     function submitReservation() {
       if (!userProfile || !selectedSlot) return;
 
@@ -192,10 +191,7 @@
         menu: menuSelect.options[menuSelect.selectedIndex].text
       };
 
-      fetch(GAS_URL, {
-        method: "POST",
-        body: JSON.stringify(reservationData)
-      })
+      fetch(GAS_URL, { method: "POST", body: JSON.stringify(reservationData) })
       .then(response => response.json())
       .then(data => {
         if (data.status === "success") {
@@ -205,9 +201,7 @@
           alert("予約に失敗しました。");
         }
       })
-      .catch(error => {
-        alert("通信エラーが発生しました。");
-      });
+      .catch(error => { alert("通信エラーが発生しました。"); });
     }
   </script>
 </body>
