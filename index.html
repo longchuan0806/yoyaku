@@ -3,24 +3,20 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>美容室 予約システム（松プラン版）</title>
+  <title>美容室 予約システム（松プラン連動版）</title>
   <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js"></script>
   <style>
     body { font-family: sans-serif; margin: 0; padding: 10px; background-color: #f9f9f9; color: #333; }
     .info-box { background: white; padding: 12px; border-radius: 8px; margin-bottom: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); font-size: 14px; }
-    
-    /* 選択エリアのデザイン */
     .select-section { background: white; padding: 15px; border-radius: 8px; margin-bottom: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
     .select-group { margin-bottom: 12px; }
     .select-group label { display: block; font-size: 12px; font-weight: bold; margin-bottom: 5px; color: #666; }
     .form-select { display: block; width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 5px; font-size: 14px; background-color: #fff; }
-    
     #calendar { background: white; padding: 10px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); margin-bottom: 20px; display: none; }
     .fc-day-sun .fc-col-header-cell-cushion { color: red; }
     .fc-day-sat .fc-col-header-cell-cushion { color: blue; }
     .fc-event { cursor: pointer; }
-    
     .selection-box { background: #e9f7ef; border: 1px solid #28a745; padding: 15px; border-radius: 8px; text-align: center; display: none; margin-top: 15px; }
     .selection-text { font-size: 16px; font-weight: bold; margin-bottom: 10px; color: #1e7e34; }
     .btn { display: block; width: 100%; padding: 15px; background: #28a745; color: white; text-align: center; border-radius: 5px; font-weight: bold; border: none; cursor: pointer; font-size: 16px; }
@@ -37,24 +33,18 @@
       <label>1. 店舗を選択</label>
       <select id="shopSelect" class="form-select" onchange="checkSelections()">
         <option value="">-- 店舗を選んでください --</option>
-        <option value="ST001">本店</option>
-        <option value="ST002">2号店</option>
       </select>
     </div>
     <div class="select-group">
       <label>2. スタッフを選択</label>
       <select id="staffSelect" class="form-select" onchange="checkSelections()">
         <option value="">-- スタッフを選んでください --</option>
-        <option value="S001">佐藤（本店）</option>
-        <option value="S002">鈴木（本店）</option>
       </select>
     </div>
     <div class="select-group">
       <label>3. メニューを選択</label>
       <select id="menuSelect" class="form-select" onchange="checkSelections()">
         <option value="">-- メニューを選んでください --</option>
-        <option value="M001">カット</option>
-        <option value="M002">カット＋カラー</option>
       </select>
     </div>
   </div>
@@ -70,6 +60,9 @@
     let userProfile = null;
     let selectedSlot = null;
     let calendar = null;
+    
+    // ★あなた専用のGASウェブアプリURL
+    const GAS_URL = "https://script.google.com/macros/s/AKfycbzraDS-yzVvbrx-CTRO0yvhBC8hTmzyet8N0dfNUOxOrAD3Y5KsBGDWT0iF9VuZN60BIw/exec";
 
     // 1. LINE（LIFF）の初期化
     liff.init({ liffId: "2010109198-rUyIvyiZ" })
@@ -80,19 +73,55 @@
           liff.getProfile().then(profile => {
             userProfile = profile;
             document.getElementById("userName").innerText = profile.displayName;
+            // LINEが読めたら、スプレッドシートのデータを引っ張ってくる
+            fetchMasterData();
           });
         }
       })
       .catch((err) => { console.error("LIFF初期化エラー", err); });
 
-    // 2. 3つの条件がすべて選ばれたかチェックする関数
+    // 2. GASからスプレッドシートの台帳データを自動読み込みしてボタンに入れる関数
+    function fetchMasterData() {
+      fetch(GAS_URL)
+        .then(response => response.json())
+        .then(data => {
+          // 店舗ボタンの中身を自動作成
+          const shopSelect = document.getElementById("shopSelect");
+          data.shops.forEach(shop => {
+            let opt = document.createElement("option");
+            opt.value = shop.id;
+            opt.textContent = shop.name;
+            shopSelect.appendChild(opt);
+          });
+
+          // スタッフボタンの中身を自動作成
+          const staffSelect = document.getElementById("staffSelect");
+          data.staffs.forEach(staff => {
+            let opt = document.createElement("option");
+            opt.value = staff.id;
+            opt.textContent = staff.name;
+            staffSelect.appendChild(opt);
+          });
+
+          // メニューボタンの中身を自動作成
+          const menuSelect = document.getElementById("menuSelect");
+          data.menus.forEach(menu => {
+            let opt = document.createElement("option");
+            opt.value = menu.id;
+            opt.textContent = menu.name;
+            menuSelect.appendChild(opt);
+          });
+        })
+        .catch(err => { console.error("データ読み込みエラー:", err); });
+    }
+
+    // 3. 3つの条件が選ばれたかチェック
     function checkSelections() {
       const shop = document.getElementById("shopSelect").value;
       const staff = document.getElementById("staffSelect").value;
       const menu = document.getElementById("menuSelect").value;
       const calendarEl = document.getElementById('calendar');
 
-      // すべて選ばれたらカレンダーを表示して組み立てる
       if (shop && staff && menu) {
         calendarEl.style.display = 'block';
         if (!calendar) {
@@ -106,7 +135,7 @@
       }
     }
 
-    // 3. カレンダーの組み立て
+    // 4. カレンダーの組み立て
     function initCalendar() {
       const calendarEl = document.getElementById('calendar');
       calendar = new FullCalendar.Calendar(calendarEl, {
@@ -119,7 +148,7 @@
         height: 'auto',
         headerToolbar: { left: 'prev', center: 'title', right: 'next' },
         
-        // テスト用の空き時間枠（ターコイズブルー）
+        // テスト用の空き時間枠（ここも次のステップで完全自動化します）
         events: [
           { title: '空き', start: '2026-06-08T10:00:00', end: '2026-06-08T11:00:00', color: '#40E0D0' },
           { title: '空き', start: '2026-06-08T14:00:00', end: '2026-06-08T15:00:00', color: '#40E0D0' },
@@ -140,7 +169,7 @@
       calendar.render();
     }
 
-    // 4. GASに選んだデータをまとめて送信する関数
+    // 5. データを送信
     function submitReservation() {
       if (!userProfile || !selectedSlot) return;
 
@@ -149,22 +178,21 @@
       const startTimeStr = start.getFullYear() + '/' + (start.getMonth() + 1) + '/' + start.getDate() + ' ' + start.getHours() + ':' + String(start.getMinutes()).padStart(2, '0');
       const endTimeStr = end.getFullYear() + '/' + (end.getMonth() + 1) + '/' + end.getDate() + ' ' + end.getHours() + ':' + String(end.getMinutes()).padStart(2, '0');
 
-      // スマホ画面で選ばれた文字を取得してGASへ送る
       const shopSelect = document.getElementById("shopSelect");
       const staffSelect = document.getElementById("staffSelect");
       const menuSelect = document.getElementById("menuSelect");
 
       const reservationData = {
-        shopId: shopSelect.options[shopSelect.selectedIndex].text,     // 選んだ店舗名
-        staffId: staffSelect.options[staffSelect.selectedIndex].text,   // 選んだスタッフ名
+        shopId: shopSelect.options[shopSelect.selectedIndex].text,
+        staffId: staffSelect.options[staffSelect.selectedIndex].text,
         startTime: startTimeStr,
         endTime: endTimeStr,
         name: userProfile.displayName,
         lineUserId: userProfile.userId,
-        menu: menuSelect.options[menuSelect.selectedIndex].text       // 選んだメニュー名
+        menu: menuSelect.options[menuSelect.selectedIndex].text
       };
 
-      fetch("https://script.google.com/macros/s/AKfycbzraDS-yzVvbrx-CTRO0yvhBC8hTmzyet8N0dfNUOxOrAD3Y5KsBGDWT0iF9VuZN60BIw/exec", {
+      fetch(GAS_URL, {
         method: "POST",
         body: JSON.stringify(reservationData)
       })
