@@ -4,8 +4,10 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>美容室 予約システム（松プラン完全版）</title>
+  
   <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js"></script>
+  
   <style>
     body { font-family: sans-serif; margin: 0; padding: 10px; background-color: #f9f9f9; color: #333; }
     .info-box { background: white; padding: 12px; border-radius: 8px; margin-bottom: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); font-size: 14px; }
@@ -31,16 +33,18 @@
   <div class="select-section">
     <div class="select-group">
       <label>1. 店舗を選択</label>
-      <select id="shopSelect" class="form-select" onchange="checkSelections()">
+      <select id="shopSelect" class="form-select" onchange="filterStaff(); checkSelections();">
         <option value="">-- 店舗を選んでください --</option>
       </select>
     </div>
+    
     <div class="select-group">
       <label>2. スタッフを選択</label>
       <select id="staffSelect" class="form-select" onchange="checkSelections()">
         <option value="">-- スタッフを選んでください --</option>
       </select>
     </div>
+    
     <div class="select-group">
       <label>3. メニューを選択</label>
       <select id="menuSelect" class="form-select" onchange="checkSelections()">
@@ -61,10 +65,12 @@
     let selectedSlot = null;
     let calendar = null;
     let masterMenus = [];
+    let masterStaffs = []; // 店舗ごとの絞り込み用にデータを保存する箱
     
+    // お店の台帳（GAS）の住所URL
     const GAS_URL = "https://script.google.com/macros/s/AKfycbzraDS-yzVvbrx-CTRO0yvhBC8hTmzyet8N0dfNUOxOrAD3Y5KsBGDWT0iF9VuZN60BIw/exec";
 
-    // LINE初期化
+    // 【ステップ1】スマホのLINE（LIFF）を起動する処理
     liff.init({ liffId: "2010109198-rUyIvyiZ" })
       .then(() => {
         if (!liff.isLoggedIn()) {
@@ -73,64 +79,85 @@
           liff.getProfile().then(profile => {
             userProfile = profile;
             document.getElementById("userName").innerText = profile.displayName;
-            fetchMasterData();
+            fetchMasterData(); // LINEに繋がったらお店のデータを読み込む
           });
         }
       })
       .catch((err) => { console.error("LIFF初期化エラー", err); });
 
-    // 台帳データの読み込み
+    // 【ステップ2】お店の台帳（マスタ）のデータを自動で読み込む処理
     function fetchMasterData() {
       fetch(GAS_URL)
         .then(response => response.json())
         .then(data => {
-          masterMenus = data.menus; // 時間計算用にメニューデータを保存
+          masterMenus = data.menus;
+          masterStaffs = data.staffs;
 
+          // 1. 店舗の選択肢をボタンに詰め込む
           const shopSelect = document.getElementById("shopSelect");
           data.shops.forEach(shop => {
             let opt = document.createElement("option");
-            opt.value = shop.id; opt.textContent = shop.name; shopSelect.appendChild(opt);
+            opt.value = shop.id;
+            opt.textContent = shop.name;
+            shopSelect.appendChild(opt);
           });
 
-          const staffSelect = document.getElementById("staffSelect");
-          data.staffs.forEach(staff => {
-            let opt = document.createElement("option");
-            opt.value = staff.id; opt.textContent = staff.name; staffSelect.appendChild(opt);
-          });
-
+          // 2. メニューの選択肢をボタンに詰め込む
           const menuSelect = document.getElementById("menuSelect");
           data.menus.forEach(menu => {
             let opt = document.createElement("option");
-            opt.value = menu.id; opt.textContent = menu.name; menuSelect.appendChild(opt);
+            opt.value = menu.id;
+            opt.textContent = menu.name;
+            menuSelect.appendChild(opt);
           });
+
+          // 最初にスタッフリストの引き出しを準備する
+          filterStaff();
         });
     }
 
-    // ボタン選択のチェック
+    // 【ステップ3】選んだ店舗に合わせて、スタッフを自動で絞り込む処理（★IDバグ修正済み）
+    function filterStaff() {
+      const shopId = document.getElementById("shopSelect").value;
+      const staffSelect = document.getElementById("staffSelect");
+      
+      // 一度スタッフのボタンをリセットする
+      staffSelect.innerHTML = '<option value="">-- スタッフを選んでください --</option>';
+      
+      masterStaffs.forEach(staff => {
+        // 選んだ店舗のスタッフだけをボタンに付け足していく
+        if (!shopId || staff.shopId === shopId) {
+          let opt = document.createElement("option");
+          opt.value = staff.id;         // 【ここを修正】名前ではなく、正しいID（S001など）を裏側に登録
+          opt.textContent = staff.name; // 画面の見た目はスタッフ名にする
+          staffSelect.appendChild(opt);
+        }
+      });
+    }
+
+    // 【ステップ4】3つのボタンが全部選ばれたら、カレンダーを引っ張ってくる処理
     function checkSelections() {
       const shop = document.getElementById("shopSelect").value;
-      const staff = document.getElementById("staffSelect").value;
+      const staff = document.getElementById("staffSelect").value; // ここで正しいID(S001等)がGASへ送られます
       const menu = document.getElementById("menuSelect").value;
       const calendarEl = document.getElementById('calendar');
 
       if (shop && staff && menu) {
-        // 選ばれたメニューの「所要時間」を探す
         const selectedMenu = masterMenus.find(m => m.id === menu);
         const duration = selectedMenu ? selectedMenu.duration : 60;
 
-        // シフト表からリアルタイムに空き枠をもらってくる
+        // 【ここがご指摘の場所】見やすく整理しました。裏側のGASへ「ID」を正しく問い合わせます
         fetch(GAS_URL + "?staffId=" + staff + "&duration=" + duration)
           .then(res => res.json())
           .then(events => {
-            calendarEl.style.with = "100%";
+            calendarEl.style.width = "100%";
             calendarEl.style.display = 'block';
             
             if (!calendar) {
-              initCalendar(events);
+              initCalendar(events); // 初めてならカレンダーを新しく作る
             } else {
-              // 古い予定を消して、新しい空き枠をカレンダーに入れ直す
-              calendar.removeAllEvents();
-              calendar.addEventSource(events);
+              calendar.removeAllEvents(); // ２回目なら古い枠を消して
+              calendar.addEventSource(events); // 新しい空き枠に入れ替える
               calendar.render();
             }
           });
@@ -140,7 +167,7 @@
       }
     }
 
-    // カレンダー表示
+    // 【ステップ5】スマホ画面にカレンダーを表示する処理
     function initCalendar(initialEvents) {
       const calendarEl = document.getElementById('calendar');
       calendar = new FullCalendar.Calendar(calendarEl, {
@@ -152,7 +179,7 @@
         slotMaxTime: '19:00:00',
         height: 'auto',
         headerToolbar: { left: 'prev', center: 'title', right: 'next' },
-        events: initialEvents, // シフトから計算された本物の空き枠
+        events: initialEvents, // シフトから計算された「本物の空き枠」を映す
         
         eventClick: function(info) {
           selectedSlot = info.event;
@@ -168,7 +195,7 @@
       calendar.render();
     }
 
-    // 予約送信
+    // 【ステップ6】「予約を確定する」ボタンが押されたら台帳に書き込む処理
     function submitReservation() {
       if (!userProfile || !selectedSlot) return;
 
@@ -183,7 +210,7 @@
 
       const reservationData = {
         shopId: shopSelect.options[shopSelect.selectedIndex].text,
-        staffId: staffSelect.options[staffSelect.selectedIndex].text,
+        staffId: staffSelect.options[staffSelect.selectedIndex].text, // 台帳へは見やすいように名前で記録する
         startTime: startTimeStr,
         endTime: endTimeStr,
         name: userProfile.displayName,
@@ -191,12 +218,13 @@
         menu: menuSelect.options[menuSelect.selectedIndex].text
       };
 
+      // 台帳（GAS）へデータを送信
       fetch(GAS_URL, { method: "POST", body: JSON.stringify(reservationData) })
       .then(response => response.json())
       .then(data => {
         if (data.status === "success") {
           alert("ご予約が完了しました！LINEメッセージをご確認ください。");
-          liff.closeWindow();
+          liff.closeWindow(); // 成功したらスマホの画面を自動で閉じる
         } else {
           alert("予約に失敗しました。");
         }
