@@ -171,6 +171,7 @@
     function initCalendar(initialEvents) {
       const calendarEl = document.getElementById('calendar');
       calendar = new FullCalendar.Calendar(calendarEl, {
+        timeZone: 'local', // 👈 ★ここに日本の時計を見るルールを追加しました！
         initialView: 'timeGridThreeDay',
         views: { timeGridThreeDay: { type: 'timeGrid', duration: { days: 3 }, buttonText: '3日間' } },
         locale: 'ja',
