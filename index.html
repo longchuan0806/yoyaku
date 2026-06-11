@@ -170,8 +170,24 @@
     // 【ステップ5】スマホ画面にカレンダーを表示する処理
     function initCalendar(initialEvents) {
       const calendarEl = document.getElementById('calendar');
+      
+      // 🕒 【追加】「今の時間」より前の枠を自動で「予約不可」に塗り替える処理
+      const now = new Date();
+      const updatedEvents = initialEvents.map(event => {
+        if (new Date(event.start) < now) {
+          return {
+            ...event,
+            title: '× 予約不可',
+            backgroundColor: '#cccccc', // グレーに変える
+            borderColor: '#cccccc',
+            editable: false
+          };
+        }
+        return event;
+      });
+
       calendar = new FullCalendar.Calendar(calendarEl, {
-        timeZone: 'local', // 👈 ★ここに日本の時計を見るルールを追加しました！
+        timeZone: 'local',
         initialView: 'timeGridThreeDay',
         views: { timeGridThreeDay: { type: 'timeGrid', duration: { days: 3 }, buttonText: '3日間' } },
         locale: 'ja',
@@ -180,7 +196,7 @@
         slotMaxTime: '19:00:00',
         height: 'auto',
         headerToolbar: { left: 'prev', center: 'title', right: 'next' },
-        events: initialEvents, // シフトから計算された「本物の空き枠」を映す
+        events: updatedEvents, // 👈 過去時間をガードした最新の枠を映す
         
         eventClick: function(info) {
           selectedSlot = info.event;
