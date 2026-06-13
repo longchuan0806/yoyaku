@@ -68,7 +68,7 @@
     let masterStaffs = []; // 店舗ごとの絞り込み用にデータを保存する箱
     
     // お店の台帳（GAS）の住所URL
-    const GAS_URL = "https://script.google.com/macros/s/AKfycbyCY156oHNexj8VcEB_R_gL-duWTtKDoyTpluK_lSgJb3ZJOHedZDHhmHsX_1wyFzH1Lg/exec";
+    const GAS_URL = "https://script.google.com/macros/s/AKfycbxTwK5o0xhNENOqfrM21c7lg-7NhMchBqeEecVJSLVmXcu3T1YfRyV7DOkp5MWSQBLFMg/exec";
 
     // 【ステップ1】スマホのLINE（LIFF）を起動する処理
     liff.init({ liffId: "2010109198-rUyIvyiZ" })
@@ -227,7 +227,7 @@
 
       const reservationData = {
         shopId: shopSelect.options[shopSelect.selectedIndex].text,
-        staffId: staffSelect.options[staffSelect.selectedIndex].text, // 台帳へは見やすいように名前で記録する
+        staffId: staffSelect.value, // 🚨GAS側のgetAvailableSlotsと照合させるため、ここは名前ではなく「ID（S001等）」をそのまま流し込みます
         startTime: startTimeStr,
         endTime: endTimeStr,
         name: userProfile.displayName,
