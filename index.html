@@ -227,7 +227,7 @@
 
       const reservationData = {
         shopId: shopSelect.options[shopSelect.selectedIndex].text,
-        staffId: staffSelect.value, // 🚨GAS側のgetAvailableSlotsと照合させるため、ここは名前ではなく「ID（S001等）」をそのまま流し込みます
+        staffId: staffSelect.options[staffSelect.selectedIndex].text, // ↩️ここを「.text」に戻すことで、台帳へ【スタッフ名】が優しく記録されるようになります！
         startTime: startTimeStr,
         endTime: endTimeStr,
         name: userProfile.displayName,
