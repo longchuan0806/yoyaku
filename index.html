@@ -27,7 +27,7 @@
 <body>
 
   <div class="info-box">
-    <strong>ようこそ、<span id="userName">読み込み中...</span> 様</strong>
+    <strong>ようこそ、<span id="userName" style="color:#008080;">読み込み中...</span> 様</strong>
   </div>
 
   <div class="select-section">
@@ -65,7 +65,7 @@
     let selectedSlot = null;
     let calendar = null;
     let masterMenus = [];
-    let masterStaffs = []; // 店舗ごとの絞り込み用にデータを保存する箱
+    let masterStaffs = []; 
     
     // お店の台帳（GAS）の住所URL
     const GAS_URL = "https://script.google.com/macros/s/AKfycbyJAAm2X2tvHOxRSYZdGLwQ4ZtaUAvVBGD8Tk07BN10YGSVBq6u9zhYc4_iCAjxjLd8_A/exec";
@@ -87,13 +87,12 @@
 
     // 【ステップ2】お店の台帳（マスタ）のデータを自動で読み込む処理
     function fetchMasterData() {
-      fetch(GAS_URL)
+      fetch(GAS_URL + "?type=init") // 💡GASから初期データを貰うための合言葉(?type=init)を確実に追記
         .then(response => response.json())
         .then(data => {
           masterMenus = data.menus;
           masterStaffs = data.staffs;
 
-          // 1. 店舗の選択肢をボタンに詰め込む
           const shopSelect = document.getElementById("shopSelect");
           data.shops.forEach(shop => {
             let opt = document.createElement("option");
@@ -102,7 +101,6 @@
             shopSelect.appendChild(opt);
           });
 
-          // 2. メニューの選択肢をボタンに詰め込む
           const menuSelect = document.getElementById("menuSelect");
           data.menus.forEach(menu => {
             let opt = document.createElement("option");
@@ -111,25 +109,22 @@
             menuSelect.appendChild(opt);
           });
 
-          // 最初にスタッフリストの引き出しを準備する
           filterStaff();
         });
     }
 
-    // 【ステップ3】選んだ店舗に合わせて、スタッフを自動で絞り込む処理（★IDバグ修正済み）
+    // 【ステップ3】選んだ店舗に合わせて、スタッフを自動で絞り込む処理
     function filterStaff() {
       const shopId = document.getElementById("shopSelect").value;
       const staffSelect = document.getElementById("staffSelect");
       
-      // 一度スタッフのボタンをリセットする
       staffSelect.innerHTML = '<option value="">-- スタッフを選んでください --</option>';
       
       masterStaffs.forEach(staff => {
-        // 選んだ店舗のスタッフだけをボタンに付け足していく
         if (!shopId || staff.shopId === shopId) {
           let opt = document.createElement("option");
-          opt.value = staff.id;         // 【ここを修正】名前ではなく、正しいID（S001など）を裏側に登録
-          opt.textContent = staff.name; // 画面の見た目はスタッフ名にする
+          opt.value = staff.id;         
+          opt.textContent = staff.name; 
           staffSelect.appendChild(opt);
         }
       });
@@ -138,7 +133,7 @@
     // 【ステップ4】3つのボタンが全部選ばれたら、カレンダーを引っ張ってくる処理
     function checkSelections() {
       const shop = document.getElementById("shopSelect").value;
-      const staff = document.getElementById("staffSelect").value; // ここで正しいID(S001等)がGASへ送られます
+      const staff = document.getElementById("staffSelect").value; 
       const menu = document.getElementById("menuSelect").value;
       const calendarEl = document.getElementById('calendar');
 
@@ -146,7 +141,6 @@
         const selectedMenu = masterMenus.find(m => m.id === menu);
         const duration = selectedMenu ? selectedMenu.duration : 60;
 
-        // 【ここがご指摘の場所】見やすく整理しました。裏側のGASへ「ID」を正しく問い合わせます
         fetch(GAS_URL + "?staffId=" + staff + "&duration=" + duration)
           .then(res => res.json())
           .then(events => {
@@ -154,10 +148,10 @@
             calendarEl.style.display = 'block';
             
             if (!calendar) {
-              initCalendar(events); // 初めてならカレンダーを新しく作る
+              initCalendar(events); 
             } else {
-              calendar.removeAllEvents(); // ２回目なら古い枠を消して
-              calendar.addEventSource(events); // 新しい空き枠に入れ替える
+              calendar.removeAllEvents(); 
+              calendar.addEventSource(events); 
               calendar.render();
             }
           });
@@ -171,14 +165,13 @@
     function initCalendar(initialEvents) {
       const calendarEl = document.getElementById('calendar');
       
-      // 🕒 【追加】「今の時間」より前の枠を自動で「予約不可」に塗り替える処理
       const now = new Date();
       const updatedEvents = initialEvents.map(event => {
         if (new Date(event.start) < now) {
           return {
             ...event,
             title: '× 予約不可',
-            backgroundColor: '#cccccc', // グレーに変える
+            backgroundColor: '#cccccc', 
             borderColor: '#cccccc',
             editable: false
           };
@@ -196,9 +189,15 @@
         slotMaxTime: '19:00:00',
         height: 'auto',
         headerToolbar: { left: 'prev', center: 'title', right: 'next' },
-        events: updatedEvents, // 👈 過去時間をガードした最新の枠を映す
+        events: updatedEvents, 
         
         eventClick: function(info) {
+          // 💡【追加した物理ロック】もし「×」が含まれていたら、アラートを出して強制終了（絶対に予約させない）
+          if (info.event.title.includes('×') || info.event.title.includes('予約不可')) {
+            alert('申し訳ありません。この枠はすでに予約が埋まっているか、過去の時間です。別の時間をお選びください。');
+            return; 
+          }
+
           selectedSlot = info.event;
           const start = new Date(selectedSlot.start);
           const dateStr = (start.getMonth() + 1) + '月' + start.getDate() + '日';
@@ -226,8 +225,9 @@
       const menuSelect = document.getElementById("menuSelect");
 
       const reservationData = {
+        action: "reserve", // 💡【重要追加】GASに「これは予約システムのデータだよ」と教える仕分け用の合言葉
         shopId: shopSelect.options[shopSelect.selectedIndex].text,
-        staffId: staffSelect.options[staffSelect.selectedIndex].text, // ↩️ここを「.text」に戻すことで、台帳へ【スタッフ名】が優しく記録されるようになります！
+        staffId: staffSelect.options[staffSelect.selectedIndex].text, 
         startTime: startTimeStr,
         endTime: endTimeStr,
         name: userProfile.displayName,
@@ -241,7 +241,7 @@
       .then(data => {
         if (data.status === "success") {
           alert("ご予約が完了しました！LINEメッセージをご確認ください。");
-          liff.closeWindow(); // 成功したらスマホの画面を自動で閉じる
+          liff.closeWindow(); 
         } else {
           alert("予約に失敗しました。");
         }
