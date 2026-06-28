@@ -37,14 +37,12 @@
         <option value="">-- 店舗を選んでください --</option>
       </select>
     </div>
-    
     <div class="select-group">
       <label>2. スタッフを選択</label>
       <select id="staffSelect" class="form-select" onchange="checkSelections()">
         <option value="">-- スタッフを選んでください --</option>
       </select>
     </div>
-    
     <div class="select-group">
       <label>3. メニューを選択</label>
       <select id="menuSelect" class="form-select" onchange="checkSelections()">
@@ -67,10 +65,9 @@
     let masterMenus = [];
     let masterStaffs = []; 
     
-    // お店の台帳（GAS）の住所URL
+    // 🚨ここに最新のGASウェブアプリURLが入っているか必ず確認してください！
     const GAS_URL = "https://script.google.com/macros/s/AKfycbyJAAm2X2tvHOxRSYZdGLwQ4ZtaUAvVBGD8Tk07BN10YGSVBq6u9zhYc4_iCAjxjLd8_A/exec";
 
-    // 【ステップ1】スマホのLINE（LIFF）を起動する処理
     liff.init({ liffId: "2010109198-rUyIvyiZ" })
       .then(() => {
         if (!liff.isLoggedIn()) {
@@ -79,20 +76,18 @@
           liff.getProfile().then(profile => {
             userProfile = profile;
             document.getElementById("userName").innerText = profile.displayName;
-            fetchMasterData(); // LINEに繋がったらお店のデータを読み込む
+            fetchMasterData(); 
           });
         }
       })
       .catch((err) => { console.error("LIFF初期化エラー", err); });
 
-    // 【ステップ2】お店の台帳（マスタ）のデータを自動で読み込む処理
     function fetchMasterData() {
-      fetch(GAS_URL + "?type=init") // 💡GASから初期データを貰うための合言葉(?type=init)を確実に追記
+      fetch(GAS_URL + "?type=init") 
         .then(response => response.json())
         .then(data => {
           masterMenus = data.menus;
           masterStaffs = data.staffs;
-
           const shopSelect = document.getElementById("shopSelect");
           data.shops.forEach(shop => {
             let opt = document.createElement("option");
@@ -100,7 +95,6 @@
             opt.textContent = shop.name;
             shopSelect.appendChild(opt);
           });
-
           const menuSelect = document.getElementById("menuSelect");
           data.menus.forEach(menu => {
             let opt = document.createElement("option");
@@ -108,18 +102,14 @@
             opt.textContent = menu.name;
             menuSelect.appendChild(opt);
           });
-
           filterStaff();
         });
     }
 
-    // 【ステップ3】選んだ店舗に合わせて、スタッフを自動で絞り込む処理
     function filterStaff() {
       const shopId = document.getElementById("shopSelect").value;
       const staffSelect = document.getElementById("staffSelect");
-      
       staffSelect.innerHTML = '<option value="">-- スタッフを選んでください --</option>';
-      
       masterStaffs.forEach(staff => {
         if (!shopId || staff.shopId === shopId) {
           let opt = document.createElement("option");
@@ -130,7 +120,6 @@
       });
     }
 
-    // 【ステップ4】3つのボタンが全部選ばれたら、カレンダーを引っ張ってくる処理
     function checkSelections() {
       const shop = document.getElementById("shopSelect").value;
       const staff = document.getElementById("staffSelect").value; 
@@ -140,13 +129,11 @@
       if (shop && staff && menu) {
         const selectedMenu = masterMenus.find(m => m.id === menu);
         const duration = selectedMenu ? selectedMenu.duration : 60;
-
         fetch(GAS_URL + "?staffId=" + staff + "&duration=" + duration)
           .then(res => res.json())
           .then(events => {
             calendarEl.style.width = "100%";
             calendarEl.style.display = 'block';
-            
             if (!calendar) {
               initCalendar(events); 
             } else {
@@ -161,20 +148,12 @@
       }
     }
 
-    // 【ステップ5】スマホ画面にカレンダーを表示する処理
     function initCalendar(initialEvents) {
       const calendarEl = document.getElementById('calendar');
-      
       const now = new Date();
       const updatedEvents = initialEvents.map(event => {
         if (new Date(event.start) < now) {
-          return {
-            ...event,
-            title: '× 予約不可',
-            backgroundColor: '#cccccc', 
-            borderColor: '#cccccc',
-            editable: false
-          };
+          return { ...event, title: '× 予約不可', backgroundColor: '#cccccc', borderColor: '#cccccc', editable: false };
         }
         return event;
       });
@@ -192,17 +171,14 @@
         events: updatedEvents, 
         
         eventClick: function(info) {
-          // 💡【追加した物理ロック】もし「×」が含まれていたら、アラートを出して強制終了（絶対に予約させない）
           if (info.event.title.includes('×') || info.event.title.includes('予約不可')) {
             alert('申し訳ありません。この枠はすでに予約が埋まっているか、過去の時間です。別の時間をお選びください。');
             return; 
           }
-
           selectedSlot = info.event;
           const start = new Date(selectedSlot.start);
           const dateStr = (start.getMonth() + 1) + '月' + start.getDate() + '日';
           const timeStr = start.getHours() + ':' + String(start.getMinutes()).padStart(2, '0');
-          
           document.getElementById("selectionText").innerText = '選択中：' + dateStr + ' ' + timeStr + '〜';
           document.getElementById("selectionBox").style.display = 'block';
           window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
@@ -211,21 +187,20 @@
       calendar.render();
     }
 
-    // 【ステップ6】「予約を確定する」ボタンが押されたら台帳に書き込む処理
     function submitReservation() {
       if (!userProfile || !selectedSlot) return;
-
       const start = new Date(selectedSlot.start);
       const end = new Date(selectedSlot.end);
-      const startTimeStr = start.getFullYear() + '/' + (start.getMonth() + 1) + '/' + start.getDate() + ' ' + start.getHours() + ':' + String(start.getMinutes()).padStart(2, '0');
-      const endTimeStr = end.getFullYear() + '/' + (end.getMonth() + 1) + '/' + end.getDate() + ' ' + end.getHours() + ':' + String(end.getMinutes()).padStart(2, '0');
+      // 日付を日本の標準フォーマット（yyyy/MM/dd HH:mm）で組み立てて送信
+      const startTimeStr = start.getFullYear() + '/' + String(start.getMonth() + 1).padStart(2, '0') + '/' + String(start.getDate()).padStart(2, '0') + ' ' + String(start.getHours()).padStart(2, '0') + ':' + String(start.getMinutes()).padStart(2, '0');
+      const endTimeStr = end.getFullYear() + '/' + String(end.getMonth() + 1).padStart(2, '0') + '/' + String(end.getDate()).padStart(2, '0') + ' ' + String(end.getHours()).padStart(2, '0') + ':' + String(end.getMinutes()).padStart(2, '0');
 
       const shopSelect = document.getElementById("shopSelect");
       const staffSelect = document.getElementById("staffSelect");
       const menuSelect = document.getElementById("menuSelect");
 
       const reservationData = {
-        action: "reserve", // 💡【重要追加】GASに「これは予約システムのデータだよ」と教える仕分け用の合言葉
+        action: "reserve", // 💡GASに予約データであることを伝える合言葉
         shopId: shopSelect.options[shopSelect.selectedIndex].text,
         staffId: staffSelect.options[staffSelect.selectedIndex].text, 
         startTime: startTimeStr,
@@ -235,12 +210,11 @@
         menu: menuSelect.options[menuSelect.selectedIndex].text
       };
 
-      // 台帳（GAS）へデータを送信
       fetch(GAS_URL, { method: "POST", body: JSON.stringify(reservationData) })
       .then(response => response.json())
       .then(data => {
         if (data.status === "success") {
-          alert("ご予約が完了しました！LINEメッセージをご確認ください。");
+          alert("ご予約が完了しました！");
           liff.closeWindow(); 
         } else {
           alert("予約に失敗しました。");
