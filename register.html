@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>顧客情報登録</title>
+  <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+  <style>
+    body { font-family: sans-serif; padding: 20px; background-color: #f4f7f6; color: #333; }
+    label { display: block; margin-top: 15px; font-weight: bold; }
+    input, select { width: 100%; padding: 10px; margin-top: 5px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; font-size: 16px; }
+    button { width: 100%; padding: 12px; background-color: #40E0D0; color: white; border: none; border-radius: 4px; margin-top: 25px; font-size: 18px; font-weight: bold; cursor: pointer; }
+    button:disabled { background-color: #cccccc; cursor: not-allowed; }
+  </style>
+</head>
+<body>
+  <h2>顧客情報のご登録</h2>
+  <form id="customerForm">
+    <input type="hidden" id="lineName" name="lineName">
+    <input type="hidden" id="lineId" name="lineId">
+
+    <label>お名前（氏名）</label>
+    <input type="text" name="realName" placeholder="山田 太郎" required>
+    
+    <label>フリガナ</label>
+    <input type="text" name="furigana" placeholder="ヤマダ タロウ" required>
+    
+    <label>性別</label>
+    <select name="gender" required><option value="">選択してください</option><option value="男性">男性</option><option value="女性">女性</option><option value="その他">その他</option></select>
+    
+    <label>住所</label>
+    <input type="text" name="address" placeholder="○県○市○町1-2-3" required>
+    
+    <label>電話番号</label>
+    <input type="tel" name="tel" placeholder="09012345678" required>
+    
+    <label>年齢層</label>
+    <select name="ageGroup" required><option value="">選択してください</option><option value="10代">10代</option><option value="20代">20代</option><option value="30代">30代</option><option value="40代">40代</option><option value="50代">50代</option><option value="60代">60代</option><option value="70代以上">70代以上</option></select>
+    
+    <label>経由</label>
+    <select name="source" required><option value="">選択してください</option><option value="営業マン">営業マン</option><option value="チラシ">チラシ</option><option value="紹介">紹介</option><option value="Instagram">Instagram</option><option value="ホームページ">ホームページ</option></select>
+
+    <button type="button" id="submitBtn" onclick="submitForm()" disabled>LINE確認中...</button>
+  </form>
+
+  <script>
+    // 💡GASのURLをここに必ず貼り付けてください
+    const GAS_URL = "https://script.google.com/macros/s/AKfycbzEWNrNBDNaYKofiBPMzixJ1nY--JPJtaH2EOqjKAwLqjN8Y4syGcDh3T79Jg34_ycBdA/exec"; 
+
+    window.onload = function() {
+      // 💡顧客管理用のLIFF ID
+      liff.init({ liffId: "2010109198-UHfDzZL8" })
+        .then(() => {
+          if (liff.isLoggedIn()) {
+            liff.getProfile().then(profile => {
+              document.getElementById('lineName').value = profile.displayName;
+              document.getElementById('lineId').value = profile.userId;
+              unlockButton();
+            }).catch(() => unlockButton());
+          } else {
+            liff.login();
+          }
+        }).catch(() => unlockButton());
+      
+      setTimeout(unlockButton, 2000); // 2秒で強制ロック解除
+    };
+
+    function unlockButton() {
+      const btn = document.getElementById('submitBtn');
+      btn.disabled = false;
+      btn.innerText = "登録する";
+      btn.style.backgroundColor = "#40E0D0";
+    }
+
+    function submitForm() {
+      const form = document.getElementById('customerForm');
+      if(!form.checkValidity()) { alert('未入力の項目があります。'); return; }
+      
+      const btn = document.getElementById('submitBtn');
+      btn.disabled = true; btn.innerText = "送信中...";
+      
+      const formData = new FormData(form);
+      const data = Object.fromEntries(formData.entries());
+      data.action = "register"; // 💡GASに「これは顧客登録のデータだよ」と教える合言葉
+      
+      fetch(GAS_URL, {
+        method: "POST",
+        body: JSON.stringify(data)
+      })
+      .then(res => res.json())
+      .then(result => {
+        if(result.status === "success") {
+          alert("顧客リストへの登録が完了しました！");
+          liff.closeWindow();
+        }
+      })
+      .catch(err => { alert("通信エラーが発生しました。"); unlockButton(); });
+    }
+  </script>
+</body>
+</html>
