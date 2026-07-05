@@ -18,6 +18,10 @@
   <form id="customerForm">
     <input type="hidden" id="lineName" name="lineName">
     <input type="hidden" id="lineId" name="lineId">
+    
+    <!-- 💡自動記録用の隠しデータ -->
+    <input type="hidden" id="source" name="source">
+    <input type="hidden" id="ref_id" name="ref_id">
 
     <label>お名前（氏名）</label>
     <input type="text" name="realName" placeholder="山田 太郎" required>
@@ -37,17 +41,28 @@
     <label>年齢層</label>
     <select name="ageGroup" required><option value="">選択してください</option><option value="10代">10代</option><option value="20代">20代</option><option value="30代">30代</option><option value="40代">40代</option><option value="50代">50代</option><option value="60代">60代</option><option value="70代以上">70代以上</option></select>
     
-    <label>経由</label>
-    <select name="source" required><option value="">選択してください</option><option value="営業マン">営業マン</option><option value="チラシ">チラシ</option><option value="紹介">紹介</option><option value="Instagram">Instagram</option><option value="ホームページ">ホームページ</option></select>
-
     <button type="button" id="submitBtn" onclick="submitForm()" disabled>LINE確認中...</button>
   </form>
-
   <script>
-    // 💡GASのURLをここに必ず貼り付けてください
+    // 💡GASのURL
     const GAS_URL = "https://script.google.com/macros/s/AKfycbzEWNrNBDNaYKofiBPMzixJ1nY--JPJtaH2EOqjKAwLqjN8Y4syGcDh3T79Jg34_ycBdA/exec"; 
-
+    
     window.onload = function() {
+      // 💡【新規追加】URLの末尾（暗号）を読み取って日本語に変換する処理
+      const urlParams = new URLSearchParams(window.location.search);
+      const rawSrc = urlParams.get('src');
+      const refId = urlParams.get('ref_id') || "";
+      
+      let sourceName = "名刺"; // 何も暗号がない場合は自動的に「名刺」にする
+      if(rawSrc === "flyer") sourceName = "チラシ";
+      if(rawSrc === "web") sourceName = "ホームページ";
+      if(rawSrc === "insta") sourceName = "Instagram";
+      if(rawSrc === "intro") sourceName = "紹介";
+      
+      // 隠しデータにセット
+      document.getElementById('source').value = sourceName;
+      document.getElementById('ref_id').value = refId;
+
       // 💡顧客管理用のLIFF ID
       liff.init({ liffId: "2010605097-TOFbC8qQ" })
         .then(() => {
@@ -81,7 +96,7 @@
       
       const formData = new FormData(form);
       const data = Object.fromEntries(formData.entries());
-      data.action = "register"; // 💡GASに「これは顧客登録のデータだよ」と教える合言葉
+      data.action = "register"; 
       
       fetch(GAS_URL, {
         method: "POST",
