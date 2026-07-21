@@ -81,6 +81,7 @@
     let masterStaffs = []; 
     let masterOptions = [];
     
+    // 🚨ここにご自身の最新GASウェブアプリURLを貼り付けてください！
     const GAS_URL = "https://script.google.com/macros/s/AKfycbzQjRvVauGYUbKowJ8oCq281XsGt-5RIcCdk0BGrzc_08mMxeLHM96X8UV2zWSwp3tHVw/exec";
     
     liff.init({ liffId: "2010605097-p2ZIk7qb" })
@@ -220,7 +221,8 @@
       const now = new Date();
       const updatedEvents = initialEvents.map(event => {
         if (new Date(event.start) < now) {
-          return { ...event, title: '× 予約不可', backgroundColor: '#cccccc', borderColor: '#cccccc', editable: false };
+          // 過去の日時もグレー＆赤文字に統一
+          return { ...event, title: '× 予約不可', backgroundColor: '#e9ecef', borderColor: '#dee2e6', textColor: '#dc3545', editable: false };
         }
         return event;
       });
@@ -273,7 +275,7 @@
       const totalPrice = document.getElementById("totalPriceDisplay").innerText;
       const totalDuration = document.getElementById("totalDurationDisplay").innerText;
       
-      // 車種名（「軽自動車」など）だけを抽出
+      // 車種名（「セダン」など）を確実に取得
       const selectedMenuObj = masterMenus.find(m => m.id === menuSelect.value);
       const carTypeName = selectedMenuObj ? selectedMenuObj.name : "";
 
@@ -285,10 +287,11 @@
         endTime: endTimeStr,
         name: userProfile.displayName,
         lineUserId: userProfile.userId,
-        carType: carTypeName, // 💡車種名のみを送信
+        carType: carTypeName, 
+        menu: carTypeName, // 💡二重対策で両方にセダンをセット
         options: selectedOptions.join(", "),
         totalPrice: totalPrice,
-        totalDuration: totalDuration // 💡目安時間を送信
+        totalDuration: totalDuration
       };
 
       fetch(GAS_URL, { method: "POST", body: JSON.stringify(reservationData) })
