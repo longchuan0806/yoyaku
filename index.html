@@ -16,14 +16,12 @@
     .select-group label { display: block; font-size: 12px; font-weight: bold; margin-bottom: 5px; color: #666; }
     .form-select { display: block; width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 5px; font-size: 14px; background-color: #fff; }
     
-    /* オプション表示エリア */
     .option-box { background: #f0f7ff; border: 1px solid #cce5ff; border-radius: 6px; padding: 10px; margin-top: 8px; }
     .option-item { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; font-size: 14px; }
     .option-item:last-child { margin-bottom: 0; }
     .option-item label { font-weight: normal; margin-bottom: 0; color: #333; cursor: pointer; }
     .option-item input { width: 18px; height: 18px; cursor: pointer; }
     
-    /* 合計サマリー表示 */
     .summary-box { background: #e2f0d9; border: 1px solid #b2d89c; padding: 10px; border-radius: 6px; margin-top: 10px; font-size: 14px; font-weight: bold; color: #2e5b1e; text-align: right; }
 
     #calendar { background: white; padding: 10px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); margin-bottom: 20px; display: none; }
@@ -59,13 +57,11 @@
       </select>
     </div>
 
-    <!-- 4. オプション追加エリア（車種選定時に自動表示） -->
     <div id="optionGroup" class="select-group" style="display: none;">
       <label>4. オプションを選択（複数選択可）</label>
       <div id="optionList" class="option-box"></div>
     </div>
 
-    <!-- 合計所要時間と金額表示 -->
     <div id="summaryBox" class="summary-box" style="display: none;">
       合計金額: ¥<span id="totalPriceDisplay">0</span>（目安時間: <span id="totalDurationDisplay">0</span>分）
     </div>
@@ -85,8 +81,7 @@
     let masterStaffs = []; 
     let masterOptions = [];
     
-    // 💡 ご提示の最新GASウェブアプリURLをそのまま設定済みです
-    const GAS_URL = "https://script.google.com/macros/s/AKfycbzQjRvVauGYUbKowJ8oCq281XsGt-5RIcCdk0BGrzc_08mMxeLHM96X8UV2zWSwp3tHVw/exec";
+    const GAS_URL = "https://script.google.com/macros/s/AKfycbzEWNrNBDNaYKofiBPMzixJ1nY--JPJtaH2EOqjKAwLqjN8Y4syGcDh3T79Jg34_ycBdA/exec";
     
     liff.init({ liffId: "2010605097-p2ZIk7qb" })
       .then(() => {
@@ -143,7 +138,6 @@
       });
     }
 
-    // 車種選択時にオプションリストを自動生成
     function onCarTypeChange() {
       const menuId = document.getElementById("menuSelect").value;
       const optionGroup = document.getElementById("optionGroup");
@@ -159,7 +153,6 @@
       const selectedMenu = masterMenus.find(m => m.id === menuId);
       if (!selectedMenu) return;
 
-      // 該当車種のオプションを抽出
       const filteredOpts = masterOptions.filter(o => o.carType === selectedMenu.name);
 
       if (filteredOpts.length > 0) {
@@ -180,7 +173,6 @@
       checkSelections();
     }
 
-    // 合計時間と金額の計算 ＆ カレンダーの読み込み
     function checkSelections() {
       const shop = document.getElementById("shopSelect").value;
       const staff = document.getElementById("staffSelect").value; 
@@ -193,19 +185,16 @@
         let totalDuration = selectedMenu ? selectedMenu.duration : 30;
         let totalPrice = selectedMenu ? selectedMenu.price : 0;
 
-        // チェックされたオプションの加算
         const checkedBoxes = document.querySelectorAll('#optionList input[type="checkbox"]:checked');
         checkedBoxes.forEach(box => {
           totalDuration += parseInt(box.dataset.duration || "0", 10);
           totalPrice += parseInt(box.dataset.price || "0", 10);
         });
 
-        // 合計サマリー表示
         document.getElementById("totalPriceDisplay").innerText = totalPrice.toLocaleString();
         document.getElementById("totalDurationDisplay").innerText = totalDuration;
         summaryBox.style.display = "block";
 
-        // 空き枠取得（合計所要時間で空き枠を計算）
         fetch(GAS_URL + "?staffId=" + staff + "&duration=" + totalDuration)
           .then(res => res.json())
           .then(events => {
@@ -277,12 +266,16 @@
       const staffSelect = document.getElementById("staffSelect");
       const menuSelect = document.getElementById("menuSelect");
 
-      // 選択したオプション名の取得
       const checkedBoxes = document.querySelectorAll('#optionList input[type="checkbox"]:checked');
       let selectedOptions = [];
       checkedBoxes.forEach(box => selectedOptions.push(box.value));
 
       const totalPrice = document.getElementById("totalPriceDisplay").innerText;
+      const totalDuration = document.getElementById("totalDurationDisplay").innerText;
+      
+      // 車種名（「軽自動車」など）だけを抽出
+      const selectedMenuObj = masterMenus.find(m => m.id === menuSelect.value);
+      const carTypeName = selectedMenuObj ? selectedMenuObj.name : "";
 
       const reservationData = {
         action: "reserve",
@@ -292,9 +285,10 @@
         endTime: endTimeStr,
         name: userProfile.displayName,
         lineUserId: userProfile.userId,
-        menu: menuSelect.options[menuSelect.selectedIndex].text,
+        carType: carTypeName, // 💡車種名のみを送信
         options: selectedOptions.join(", "),
-        totalPrice: totalPrice
+        totalPrice: totalPrice,
+        totalDuration: totalDuration // 💡目安時間を送信
       };
 
       fetch(GAS_URL, { method: "POST", body: JSON.stringify(reservationData) })
