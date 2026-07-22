@@ -18,8 +18,6 @@
   <form id="customerForm">
     <input type="hidden" id="lineName" name="lineName">
     <input type="hidden" id="lineId" name="lineId">
-    
-    <!-- 💡自動記録用の隠しデータ -->
     <input type="hidden" id="source" name="source">
     <input type="hidden" id="ref_id" name="ref_id">
 
@@ -32,6 +30,16 @@
     <label>性別</label>
     <select name="gender" required><option value="">選択してください</option><option value="男性">男性</option><option value="女性">女性</option><option value="その他">その他</option></select>
     
+    <!-- 💡誕生月プルダウン項目を追加 -->
+    <label>誕生月</label>
+    <select name="birthMonth" required>
+      <option value="">誕生月を選択してください</option>
+      <option value="1月">1月</option><option value="2月">2月</option><option value="3月">3月</option>
+      <option value="4月">4月</option><option value="5月">5月</option><option value="6月">6月</option>
+      <option value="7月">7月</option><option value="8月">8月</option><option value="9月">9月</option>
+      <option value="10月">10月</option><option value="11月">11月</option><option value="12月">12月</option>
+    </select>
+
     <label>住所</label>
     <input type="text" name="address" placeholder="○県○市○町1-2-3" required>
     
@@ -44,26 +52,22 @@
     <button type="button" id="submitBtn" onclick="submitForm()" disabled>LINE確認中...</button>
   </form>
   <script>
-    // 💡GASのURL
-    const GAS_URL = "https://script.google.com/macros/s/AKfycbzEWNrNBDNaYKofiBPMzixJ1nY--JPJtaH2EOqjKAwLqjN8Y4syGcDh3T79Jg34_ycBdA/exec"; 
+    const GAS_URL = "https://script.google.com/macros/s/AKfycbzQjRvVauGYUbKowJ8oCq281XsGt-5RIcCdk0BGrzc_08mMxeLHM96X8UV2zWSwp3tHVw/exec"; 
     
     window.onload = function() {
-      // 💡【新規追加】URLの末尾（暗号）を読み取って日本語に変換する処理
       const urlParams = new URLSearchParams(window.location.search);
       const rawSrc = urlParams.get('src');
       const refId = urlParams.get('ref_id') || "";
       
-      let sourceName = "名刺"; // 何も暗号がない場合は自動的に「名刺」にする
+      let sourceName = "名刺"; 
       if(rawSrc === "flyer") sourceName = "チラシ";
       if(rawSrc === "web") sourceName = "ホームページ";
       if(rawSrc === "insta") sourceName = "Instagram";
       if(rawSrc === "intro") sourceName = "紹介";
       
-      // 隠しデータにセット
       document.getElementById('source').value = sourceName;
       document.getElementById('ref_id').value = refId;
 
-      // 💡顧客管理用のLIFF ID
       liff.init({ liffId: "2010605097-TOFbC8qQ" })
         .then(() => {
           if (liff.isLoggedIn()) {
@@ -77,16 +81,14 @@
           }
         }).catch(() => unlockButton());
       
-      setTimeout(unlockButton, 2000); // 2秒で強制ロック解除
+      setTimeout(unlockButton, 2000);
     };
-
     function unlockButton() {
       const btn = document.getElementById('submitBtn');
       btn.disabled = false;
       btn.innerText = "登録する";
       btn.style.backgroundColor = "#40E0D0";
     }
-
     function submitForm() {
       const form = document.getElementById('customerForm');
       if(!form.checkValidity()) { alert('未入力の項目があります。'); return; }
