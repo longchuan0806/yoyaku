@@ -18,7 +18,6 @@
     
     .car-box { border: 1px solid #008080; border-radius: 8px; padding: 12px; margin-bottom: 15px; background: #fafafa; }
     .car-title { font-weight: bold; color: #008080; margin-bottom: 10px; font-size: 14px; border-bottom: 2px solid #008080; padding-bottom: 4px; }
-
     .option-box { background: #f0f7ff; border: 1px solid #cce5ff; border-radius: 6px; padding: 10px; margin-top: 8px; }
     .option-item { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; font-size: 14px; }
     .option-item:last-child { margin-bottom: 0; }
@@ -27,9 +26,11 @@
     
     .toggle-car2 { background: #eef7f7; border: 1px dashed #008080; padding: 10px; border-radius: 6px; font-weight: bold; color: #008080; display: flex; align-items: center; cursor: pointer; margin-bottom: 15px; }
     .toggle-car2 input { width: 18px; height: 18px; margin-right: 8px; cursor: pointer; }
+    
+    .coupon-box { background: #fff3cd; border: 1px solid #ffeeba; border-radius: 8px; padding: 12px; margin-bottom: 15px; }
+    .coupon-title { font-weight: bold; color: #856404; font-size: 14px; margin-bottom: 8px; }
 
     .summary-box { background: #e2f0d9; border: 1px solid #b2d89c; padding: 12px; border-radius: 6px; margin-top: 10px; font-size: 15px; font-weight: bold; color: #2e5b1e; text-align: right; }
-
     #calendar { background: white; padding: 10px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); margin-bottom: 20px; display: none; }
     .fc-day-sun .fc-col-header-cell-cushion { color: red; }
     .fc-day-sat .fc-col-header-cell-cushion { color: blue; }
@@ -78,7 +79,7 @@
       ＋ 2台目も一緒に予約する
     </label>
 
-    <!-- 🚗 2台目の設定（初期状態非表示） -->
+    <!-- 🚗 2台目の設定 -->
     <div id="car2Section" class="car-box" style="display: none;">
       <div class="car-title">🚗 2台目の洗車メニュー</div>
       <div class="select-group">
@@ -93,8 +94,20 @@
       </div>
     </div>
 
+    <!-- 🎟️ クーポン・回数券選択エリア -->
+    <div id="couponArea" class="coupon-box" style="display: none;">
+      <div class="coupon-title">🎟️ クーポン・回数券を利用する（併用不可）</div>
+      <select id="couponSelect" class="form-select" onchange="calculatePrices();">
+        <option value="">-- クーポン・回数券を使わない --</option>
+      </select>
+    </div>
+
     <div id="summaryBox" class="summary-box" style="display: none;">
-      合計金額: ¥<span id="totalPriceDisplay">0</span>（合計目安時間: <span id="totalDurationDisplay">0</span>分）
+      <div>小計: ¥<span id="subTotalPriceDisplay">0</span></div>
+      <div id="discountRow" style="color: #d9534f; display: none;">割引: -¥<span id="discountPriceDisplay">0</span></div>
+      <div style="font-size: 18px; font-weight: bold; margin-top: 5px;">
+        お支払い合計: ¥<span id="totalPriceDisplay">0</span>（目安時間: <span id="totalDurationDisplay">0</span>分）
+      </div>
     </div>
   </div>
 
@@ -111,8 +124,9 @@
     let masterMenus = [];
     let masterStaffs = []; 
     let masterOptions = [];
+    let masterCoupons = [];
+    let customerInfo = { birthMonth: "", ticketCount: 0 };
     
-    // 🚨最新のGASウェブアプリURLが入っているか必ず確認してください！
     const GAS_URL = "https://script.google.com/macros/s/AKfycbzQjRvVauGYUbKowJ8oCq281XsGt-5RIcCdk0BGrzc_08mMxeLHM96X8UV2zWSwp3tHVw/exec";
     
     liff.init({ liffId: "2010605097-p2ZIk7qb" })
@@ -130,12 +144,14 @@
       .catch((err) => { console.error("LIFF初期化エラー", err); });
 
     function fetchMasterData() {
-      fetch(GAS_URL + "?type=init") 
+      fetch(GAS_URL + "?type=init&lineUserId=" + (userProfile ? userProfile.userId : "")) 
         .then(response => response.json())
         .then(data => {
           masterMenus = data.menus;
           masterStaffs = data.staffs;
           masterOptions = data.options || [];
+          masterCoupons = data.coupons || [];
+          customerInfo = data.customer || { birthMonth: "", ticketCount: 0 };
 
           const shopSelect = document.getElementById("shopSelect");
           data.shops.forEach(shop => {
@@ -145,10 +161,8 @@
             shopSelect.appendChild(opt);
           });
 
-          // 1台目・2台目のメニュープルダウン初期化
           populateMenuSelect("menuSelect1");
           populateMenuSelect("menuSelect2");
-
           filterStaff();
         });
     }
@@ -223,6 +237,110 @@
       checkSelections();
     }
 
+    function updateAvailableCoupons() {
+      const couponSelect = document.getElementById("couponSelect");
+      const couponArea = document.getElementById("couponArea");
+      const currentMonthStr = (new Date().getMonth() + 1) + "月";
+
+      const menuId1 = document.getElementById("menuSelect1").value;
+      const menuId2 = document.getElementById("menuSelect2").value;
+      const car1Obj = masterMenus.find(m => m.id === menuId1);
+      const car2Obj = masterMenus.find(m => m.id === menuId2);
+
+      couponSelect.innerHTML = '<option value="">-- クーポン・回数券を使わない --</option>';
+      let count = 0;
+
+      masterCoupons.forEach(cp => {
+        let isEligible = false;
+
+        // 誕生月限定チェック
+        if (cp.limitType === "誕生月限定") {
+          if (customerInfo.birthMonth && customerInfo.birthMonth === currentMonthStr) {
+            isEligible = true;
+          }
+        } 
+        // 回数券（獲得から日数かつTK_コード）
+        else if (cp.code.indexOf("TK_") === 0) {
+          if (customerInfo.ticketCount > 0) {
+            if (cp.targetCar === "全車種" || (car1Obj && car1Obj.name === cp.targetCar) || (car2Obj && car2Obj.name === cp.targetCar)) {
+              isEligible = true;
+            }
+          }
+        } 
+        // その他（紹介・イベント等）
+        else {
+          isEligible = true;
+        }
+
+        if (isEligible) {
+          let opt = document.createElement("option");
+          opt.value = cp.code;
+          let labelText = cp.name;
+          if (cp.code.indexOf("TK_") === 0) {
+            labelText += ` (残り${customerInfo.ticketCount}回)`;
+          }
+          opt.textContent = labelText;
+          couponSelect.appendChild(opt);
+          count++;
+        }
+      });
+
+      couponArea.style.display = count > 0 ? "block" : "none";
+    }
+
+    function calculatePrices() {
+      const menuId1 = document.getElementById("menuSelect1").value;
+      const hasCar2 = document.getElementById("addCar2Checkbox").checked;
+      const menuId2 = document.getElementById("menuSelect2").value;
+
+      let basePrice = 0;
+      let optionPrice = 0;
+      let totalDuration = 0;
+
+      const m1 = masterMenus.find(m => m.id === menuId1);
+      if (m1) { basePrice += m1.price; totalDuration += m1.duration; }
+      document.querySelectorAll('#optionList1 input[type="checkbox"]:checked').forEach(box => {
+        optionPrice += parseInt(box.dataset.price || "0", 10);
+        totalDuration += parseInt(box.dataset.duration || "0", 10);
+      });
+
+      if (hasCar2 && menuId2) {
+        const m2 = masterMenus.find(m => m.id === menuId2);
+        if (m2) { basePrice += m2.price; totalDuration += m2.duration; }
+        document.querySelectorAll('#optionList2 input[type="checkbox"]:checked').forEach(box => {
+          optionPrice += parseInt(box.dataset.price || "0", 10);
+          totalDuration += parseInt(box.dataset.duration || "0", 10);
+        });
+      }
+
+      const subTotal = basePrice + optionPrice;
+      let discount = 0;
+
+      const selectedCouponCode = document.getElementById("couponSelect").value;
+      const cp = masterCoupons.find(c => c.code === selectedCouponCode);
+
+      if (cp) {
+        const targetAmount = (cp.scope === "基本料金のみ") ? basePrice : subTotal;
+        if (cp.type === "定額") {
+          discount = cp.value;
+        } else if (cp.type === "定率") {
+          discount = Math.round(targetAmount * (cp.value / 100));
+        }
+      }
+
+      if (discount > subTotal) discount = subTotal;
+      const finalPrice = subTotal - discount;
+
+      document.getElementById("subTotalPriceDisplay").innerText = subTotal.toLocaleString();
+      document.getElementById("discountPriceDisplay").innerText = discount.toLocaleString();
+      document.getElementById("totalPriceDisplay").innerText = finalPrice.toLocaleString();
+      document.getElementById("totalDurationDisplay").innerText = totalDuration;
+
+      document.getElementById("discountRow").style.display = discount > 0 ? "block" : "none";
+
+      return { totalDuration: totalDuration, finalPrice: finalPrice };
+    }
+
     function checkSelections() {
       const shop = document.getElementById("shopSelect").value;
       const staff = document.getElementById("staffSelect").value; 
@@ -233,34 +351,13 @@
       const calendarEl = document.getElementById('calendar');
       const summaryBox = document.getElementById('summaryBox');
 
-      // 1台目が選ばれており、（2台目追加時は2台目も選ばれていること）
       if (shop && staff && menuId1 && (!hasCar2 || (hasCar2 && menuId2))) {
-        let totalDuration = 0;
-        let totalPrice = 0;
+        updateAvailableCoupons();
+        const priceInfo = calculatePrices();
 
-        // 1台目の計算
-        const m1 = masterMenus.find(m => m.id === menuId1);
-        if (m1) { totalDuration += m1.duration; totalPrice += m1.price; }
-        document.querySelectorAll('#optionList1 input[type="checkbox"]:checked').forEach(box => {
-          totalDuration += parseInt(box.dataset.duration || "0", 10);
-          totalPrice += parseInt(box.dataset.price || "0", 10);
-        });
-
-        // 2台目の計算（有効時）
-        if (hasCar2 && menuId2) {
-          const m2 = masterMenus.find(m => m.id === menuId2);
-          if (m2) { totalDuration += m2.duration; totalPrice += m2.price; }
-          document.querySelectorAll('#optionList2 input[type="checkbox"]:checked').forEach(box => {
-            totalDuration += parseInt(box.dataset.duration || "0", 10);
-            totalPrice += parseInt(box.dataset.price || "0", 10);
-          });
-        }
-
-        document.getElementById("totalPriceDisplay").innerText = totalPrice.toLocaleString();
-        document.getElementById("totalDurationDisplay").innerText = totalDuration;
         summaryBox.style.display = "block";
 
-        fetch(GAS_URL + "?staffId=" + staff + "&duration=" + totalDuration)
+        fetch(GAS_URL + "?staffId=" + staff + "&duration=" + priceInfo.totalDuration)
           .then(res => res.json())
           .then(events => {
             calendarEl.style.width = "100%";
@@ -330,14 +427,12 @@
       const shopSelect = document.getElementById("shopSelect");
       const staffSelect = document.getElementById("staffSelect");
       
-      // 1台目の情報組み立て
       const menuSelect1 = document.getElementById("menuSelect1");
       const car1Obj = masterMenus.find(m => m.id === menuSelect1.value);
       let opts1 = [];
       document.querySelectorAll('#optionList1 input[type="checkbox"]:checked').forEach(box => opts1.push(box.value));
       const car1Detail = `${car1Obj ? car1Obj.name : ""}${opts1.length > 0 ? ' [' + opts1.join(', ') + ']' : ''}`;
 
-      // 2台目の情報組み立て
       const hasCar2 = document.getElementById("addCar2Checkbox").checked;
       let car2Detail = "";
       if (hasCar2) {
@@ -351,6 +446,11 @@
       const totalPrice = document.getElementById("totalPriceDisplay").innerText;
       const totalDuration = document.getElementById("totalDurationDisplay").innerText;
 
+      const couponSelect = document.getElementById("couponSelect");
+      const usedCouponCode = couponSelect.value;
+      const usedCouponObj = masterCoupons.find(c => c.code === usedCouponCode);
+      const couponName = usedCouponObj ? usedCouponObj.name : "";
+
       const reservationData = {
         action: "reserve",
         shopId: shopSelect.options[shopSelect.selectedIndex].text,
@@ -363,7 +463,9 @@
         hasCar2: hasCar2,
         car2Detail: car2Detail,
         totalPrice: totalPrice,
-        totalDuration: totalDuration
+        totalDuration: totalDuration,
+        usedCouponCode: usedCouponCode,
+        couponName: couponName
       };
 
       fetch(GAS_URL, { method: "POST", body: JSON.stringify(reservationData) })
