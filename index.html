@@ -198,10 +198,13 @@
       checkSelections();
     }
 
-    // 💡 車種名抽出ヘルパー（メニュー名から「純粋な車種名」を取り出す）
-    function extractCarTypeName(menuName) {
-      if (!menuName) return "";
-      return menuName.split('(')[0].split('（')[0].trim();
+    // 💡【強力判定関数】空白を取り除いて柔軟に文字の一致をチェックする
+    function isCarMatch(menuName, targetCar) {
+      if (!menuName || !targetCar) return false;
+      const cleanMenu = String(menuName).replace(/\s+/g, '').toLowerCase();
+      const cleanTarget = String(targetCar).replace(/\s+/g, '').toLowerCase();
+      if (cleanTarget === "全車種") return true;
+      return cleanMenu.includes(cleanTarget) || cleanTarget.includes(cleanMenu);
     }
 
     function onCarTypeChange(carNum) {
@@ -219,8 +222,7 @@
       const selectedMenu = masterMenus.find(m => m.id === menuId);
       if (!selectedMenu) return;
 
-      const pureCarType = extractCarTypeName(selectedMenu.name);
-      const filteredOpts = masterOptions.filter(o => extractCarTypeName(o.carType) === pureCarType);
+      const filteredOpts = masterOptions.filter(o => isCarMatch(selectedMenu.name, o.carType));
 
       if (filteredOpts.length > 0) {
         filteredOpts.forEach((opt, idx) => {
@@ -261,9 +263,6 @@
       const car1Obj = masterMenus.find(m => m.id === menuId1);
       const car2Obj = hasCar2 ? masterMenus.find(m => m.id === menuId2) : null;
 
-      const car1Type = car1Obj ? extractCarTypeName(car1Obj.name) : "";
-      const car2Type = car2Obj ? extractCarTypeName(car2Obj.name) : "";
-
       couponSelect.innerHTML = '<option value="">-- クーポン・回数券を使わない --</option>';
       let count = 0;
 
@@ -282,7 +281,7 @@
             isEligible = true;
           }
         }
-        // 2. 誕生月限定（J列空欄時は顧客の誕生月＝今月で判定）
+        // 2. 誕生月限定
         else if (cp.limitType === "誕生月限定") {
           let specifiedMonth = String(cp.validDays || "").trim();
           if (specifiedMonth && specifiedMonth !== "0" && specifiedMonth !== "無期限") {
@@ -298,10 +297,11 @@
         } 
         // 3. 回数券（TK_）
         else if (cp.code.indexOf("TK_") === 0) {
-          const targetCarName = extractCarTypeName(cp.targetCar);
-          const tCount = (customerInfo.tickets && customerInfo.tickets[targetCarName]) || 0;
+          const tCount = (customerInfo.tickets && customerInfo.tickets[cp.targetCar]) || 0;
           if (tCount > 0) {
-            if (targetCarName === "全車種" || car1Type === targetCarName || car2Type === targetCarName) {
+            const isMatch1 = car1Obj && isCarMatch(car1Obj.name, cp.targetCar);
+            const isMatch2 = car2Obj && isCarMatch(car2Obj.name, cp.targetCar);
+            if (cp.targetCar === "全車種" || isMatch1 || isMatch2) {
               isEligible = true;
             }
           }
@@ -316,8 +316,7 @@
           opt.value = cp.code;
           let labelText = cp.name;
           if (cp.code.indexOf("TK_") === 0) {
-            const targetCarName = extractCarTypeName(cp.targetCar);
-            const tCount = (customerInfo.tickets && customerInfo.tickets[targetCarName]) || 0;
+            const tCount = (customerInfo.tickets && customerInfo.tickets[cp.targetCar]) || 0;
             labelText += ` (残り${tCount}回)`;
           }
           opt.textContent = labelText;
@@ -329,7 +328,7 @@
       couponArea.style.display = count > 0 ? "block" : "none";
     }
 
-    // 💡【完全解決】1台目・2台目の純粋な車種名を正しく抽出してピンポイント割引する関数
+    // 💡【完全修正版】1台目・2台目のどちらに該当車種があっても正しくピンポイント割引する関数
     function calculatePrices() {
       const menuId1 = document.getElementById("menuSelect1").value;
       const hasCar2 = document.getElementById("addCar2Checkbox").checked;
@@ -365,15 +364,11 @@
 
       if (cp) {
         if (cp.code.indexOf("TK_") === 0) {
-          const targetCarName = extractCarTypeName(cp.targetCar);
-          const m1CarType = m1 ? extractCarTypeName(m1.name) : "";
-          const m2CarType = (hasCar2 && m2) ? extractCarTypeName(m2.name) : "";
-
-          // 💡 1台目・2台目の車種名を厳密に比較して引き算！
-          if (m1CarType === targetCarName) {
-            discount = basePrice1;
-          } else if (m2CarType === targetCarName) {
-            discount = basePrice2; // 2台目がコンパクトカーなら￥5,000を正しく差し引く！
+          // 💡 柔軟判定で1台目と2台目を順番にチェック！
+          if (m1 && isCarMatch(m1.name, cp.targetCar)) {
+            discount = basePrice1; // 1台目が該当車種なら1台目の基本料金を引く
+          } else if (hasCar2 && m2 && isCarMatch(m2.name, cp.targetCar)) {
+            discount = basePrice2; // 2台目が該当車種なら2台目の基本料金を引く！
           }
         } else {
           // 一般クーポン
@@ -508,7 +503,7 @@
       const usedCouponCode = couponSelect.value;
       const usedCouponObj = masterCoupons.find(c => c.code === usedCouponCode);
       const couponName = usedCouponObj ? usedCouponObj.name : "";
-      const targetCar = usedCouponObj ? extractCarTypeName(usedCouponObj.targetCar) : "";
+      const targetCar = usedCouponObj ? usedCouponObj.targetCar : "";
 
       const reservationData = {
         action: "reserve",
