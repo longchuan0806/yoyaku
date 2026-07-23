@@ -233,7 +233,6 @@
       checkSelections();
     }
 
-    // 日付判定ヘルパー関数（文字列比較の揺れ防止）
     function parseDateStr(str) {
       if (!str) return null;
       const parts = str.replace(/-/g, '/').split('/');
@@ -241,12 +240,14 @@
       return new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
     }
 
+    // 💡【修正】誕生月・日付指定・回数券の表示ロジック完全版
     function updateAvailableCoupons() {
       const couponSelect = document.getElementById("couponSelect");
       const couponArea = document.getElementById("couponArea");
       const now = new Date();
       const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-      const currentMonthStr = (now.getMonth() + 1) + "月";
+      const currentMonthNum = now.getMonth() + 1; // 7
+      const currentMonthStr = currentMonthNum + "月"; // "7月"
 
       const menuId1 = document.getElementById("menuSelect1").value;
       const menuId2 = document.getElementById("menuSelect2").value;
@@ -260,11 +261,10 @@
       masterCoupons.forEach(cp => {
         let isEligible = false;
 
-        // 💡 1. 日付指定の厳密な判定
+        // 💡 1. 日付指定クーポンの判定
         if (cp.limitType === "日付指定") {
           const startDate = parseDateStr(cp.startDate);
           const endDate = parseDateStr(cp.endDate);
-          
           if (startDate && endDate) {
             if (today >= startDate && today <= endDate) {
               isEligible = true;
@@ -273,22 +273,34 @@
             isEligible = true;
           }
         }
-        // 💡 2. 誕生月限定判定
+        // 💡 2. 誕生月限定の判定（指定月・顧客誕生月・今月の厳密チェック）
         else if (cp.limitType === "誕生月限定") {
-          if (customerInfo.birthMonth && customerInfo.birthMonth === currentMonthStr) {
-            isEligible = true;
+          // J列（validDays）に「8月」や「8」などの指定月がある場合
+          let specifiedMonth = String(cp.validDays || "").trim();
+          
+          if (specifiedMonth && specifiedMonth !== "0") {
+            // J列に「8月」と書かれている場合は今月（7月）が8月でないと出さない
+            if (specifiedMonth.indexOf("月") === -1) specifiedMonth += "月";
+            if (currentMonthStr === specifiedMonth && customerInfo.birthMonth === currentMonthStr) {
+              isEligible = true;
+            }
+          } else {
+            // J列未指定なら、純粋に「顧客の誕生月 ＝ 今月」で判定
+            if (customerInfo.birthMonth && customerInfo.birthMonth === currentMonthStr) {
+              isEligible = true;
+            }
           }
         } 
         // 💡 3. 回数券（TK_）判定
         else if (cp.code.indexOf("TK_") === 0) {
           const tCount = (customerInfo.tickets && customerInfo.tickets[cp.targetCar]) || 0;
           if (tCount > 0) {
-            if (cp.targetCar === "全車種" || (car1Obj && car1Obj.name === cp.targetCar) || (car2Obj && car2Obj.name === cp.targetCar)) {
+            if (cp.targetCar === "全車種" || (car1Obj && car1Obj.name.trim() === cp.targetCar.trim()) || (car2Obj && car2Obj.name.trim() === cp.targetCar.trim())) {
               isEligible = true;
             }
           }
         } 
-        // 💡 4. 無条件クーポン（お友達紹介など）
+        // 💡 4. 無条件（お友達紹介など）
         else {
           isEligible = true;
         }
@@ -310,7 +322,7 @@
       couponArea.style.display = count > 0 ? "block" : "none";
     }
 
-    // 💡【厳密判定】選択された回数券の対象車種（1台目または2台目）の基本料金を引く関数
+    // 💡【完全修正】1台目・2台目のどちらに該当車種があってもその車種の基本料金を正確に引く計算関数
     function calculatePrices() {
       const menuId1 = document.getElementById("menuSelect1").value;
       const hasCar2 = document.getElementById("addCar2Checkbox").checked;
@@ -346,11 +358,13 @@
 
       if (cp) {
         if (cp.code.indexOf("TK_") === 0) {
-          // 💡 回数券の場合：1台目か2台目のうち「対象車種と一致する方」の基本料金だけを引く
-          if (m1 && m1.name.trim() === cp.targetCar.trim()) {
-            discount = basePrice1;
-          } else if (hasCar2 && m2 && m2.name.trim() === cp.targetCar.trim()) {
-            discount = basePrice2;
+          // 💡 回数券の対象車種（例: コンパクトカー）と一致する台の基本料金を厳密に取得して引き算する
+          const targetCarName = cp.targetCar.trim();
+          
+          if (m1 && m1.name.trim() === targetCarName) {
+            discount = basePrice1; // 1台目がコンパクトカーなら1台目の基本料金を引く
+          } else if (hasCar2 && m2 && m2.name.trim() === targetCarName) {
+            discount = basePrice2; // 2台目がコンパクトカーなら2台目の基本料金（￥5,000）を引く！
           }
         } else {
           // 一般クーポン
