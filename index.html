@@ -198,7 +198,7 @@
       checkSelections();
     }
 
-    // 💡 あいまい一致関数（空白を取り除き、部分一致もOKにする）
+    // 💡 あいまい一致関数（空白・全角半角・カッコ内を除去して比較）
     function isCarMatch(menuName, targetCar) {
       if (!menuName || !targetCar) return false;
       const cleanMenu = String(menuName).replace(/\s+/g, '').replace(/（.*?）|\(.*?\)/g, '').toLowerCase();
@@ -263,6 +263,7 @@
       const car1Obj = masterMenus.find(m => m.id === menuId1);
       const car2Obj = hasCar2 ? masterMenus.find(m => m.id === menuId2) : null;
 
+      const previousSelected = couponSelect.value;
       couponSelect.innerHTML = '<option value="">-- クーポン・回数券を使わない --</option>';
       let count = 0;
 
@@ -321,10 +322,14 @@
         }
       });
 
+      if (previousSelected) {
+        couponSelect.value = previousSelected;
+      }
+
       couponArea.style.display = count > 0 ? "block" : "none";
     }
 
-    // 💡【2台目完全対応計算】1台目と2台目を個別にチェックして確実に該当額を引く関数
+    // 💡【完全解解・再計算関数】毎回確実に値をクリアして1台目・2台目を正確に引き算する
     function calculatePrices() {
       const menuId1 = document.getElementById("menuSelect1").value;
       const hasCar2 = document.getElementById("addCar2Checkbox").checked;
@@ -336,7 +341,7 @@
       let totalDuration = 0;
 
       const m1 = masterMenus.find(m => m.id === menuId1);
-      if (m1) { basePrice1 = m1.price; totalDuration += m1.duration; }
+      if (m1) { basePrice1 = Number(m1.price) || 0; totalDuration += m1.duration; }
       document.querySelectorAll('#optionList1 input[type="checkbox"]:checked').forEach(box => {
         optionPrice += parseInt(box.dataset.price || "0", 10);
         totalDuration += parseInt(box.dataset.duration || "0", 10);
@@ -344,7 +349,7 @@
 
       if (hasCar2 && menuId2) {
         const m2 = masterMenus.find(m => m.id === menuId2);
-        if (m2) { basePrice2 = m2.price; totalDuration += m2.duration; }
+        if (m2) { basePrice2 = Number(m2.price) || 0; totalDuration += m2.duration; }
         document.querySelectorAll('#optionList2 input[type="checkbox"]:checked').forEach(box => {
           optionPrice += parseInt(box.dataset.price || "0", 10);
           totalDuration += parseInt(box.dataset.duration || "0", 10);
@@ -360,14 +365,14 @@
 
       if (cp) {
         if (cp.code.indexOf("TK_") === 0) {
-          // 💡 1台目・2台目を個別に判定（2台目も確実にキャッチ！）
+          // 💡 1台目・2台目の車種マッチ判定を毎回新規計算！
           const isCar1Matched = m1 && isCarMatch(m1.name, cp.targetCar);
           const isCar2Matched = hasCar2 && m2 && isCarMatch(m2.name, cp.targetCar);
 
           if (isCar1Matched) {
-            discount = basePrice1; // 1台目が該当なら1台目の金額
+            discount = basePrice1; // 1台目の基本料金（例: ￥4,000）
           } else if (isCar2Matched) {
-            discount = basePrice2; // 2台目が該当なら2台目の金額（￥5,000）を正しく引く！
+            discount = basePrice2; // 2台目の基本料金（例: ￥5,000）を正しくセット！
           }
         } else {
           // 一般クーポン
@@ -383,6 +388,7 @@
       if (discount > subTotal) discount = subTotal;
       const finalPrice = subTotal - discount;
 
+      // 画面描画の即時反映
       document.getElementById("subTotalPriceDisplay").innerText = subTotal.toLocaleString();
       document.getElementById("discountPriceDisplay").innerText = discount.toLocaleString();
       document.getElementById("totalPriceDisplay").innerText = finalPrice.toLocaleString();
