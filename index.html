@@ -198,13 +198,13 @@
       checkSelections();
     }
 
-    // 💡【強力判定関数】空白を取り除いて柔軟に文字の一致をチェックする
+    // 💡 あいまい一致関数（空白を取り除き、部分一致もOKにする）
     function isCarMatch(menuName, targetCar) {
       if (!menuName || !targetCar) return false;
-      const cleanMenu = String(menuName).replace(/\s+/g, '').toLowerCase();
-      const cleanTarget = String(targetCar).replace(/\s+/g, '').toLowerCase();
+      const cleanMenu = String(menuName).replace(/\s+/g, '').replace(/（.*?）|\(.*?\)/g, '').toLowerCase();
+      const cleanTarget = String(targetCar).replace(/\s+/g, '').replace(/（.*?）|\(.*?\)/g, '').toLowerCase();
       if (cleanTarget === "全車種") return true;
-      return cleanMenu.includes(cleanTarget) || cleanTarget.includes(cleanMenu);
+      return cleanMenu === cleanTarget || cleanMenu.includes(cleanTarget) || cleanTarget.includes(cleanMenu);
     }
 
     function onCarTypeChange(carNum) {
@@ -269,7 +269,6 @@
       masterCoupons.forEach(cp => {
         let isEligible = false;
 
-        // 1. 日付指定
         if (cp.limitType === "日付指定") {
           const startDate = parseDateStr(cp.startDate);
           const endDate = parseDateStr(cp.endDate);
@@ -281,7 +280,6 @@
             isEligible = true;
           }
         }
-        // 2. 誕生月限定
         else if (cp.limitType === "誕生月限定") {
           let specifiedMonth = String(cp.validDays || "").trim();
           if (specifiedMonth && specifiedMonth !== "0" && specifiedMonth !== "無期限") {
@@ -295,7 +293,6 @@
             }
           }
         } 
-        // 3. 回数券（TK_）
         else if (cp.code.indexOf("TK_") === 0) {
           const tCount = (customerInfo.tickets && customerInfo.tickets[cp.targetCar]) || 0;
           if (tCount > 0) {
@@ -306,7 +303,6 @@
             }
           }
         } 
-        // 4. 無条件クーポン
         else {
           isEligible = true;
         }
@@ -328,7 +324,7 @@
       couponArea.style.display = count > 0 ? "block" : "none";
     }
 
-    // 💡【完全修正版】1台目・2台目のどちらに該当車種があっても正しくピンポイント割引する関数
+    // 💡【2台目完全対応計算】1台目と2台目を個別にチェックして確実に該当額を引く関数
     function calculatePrices() {
       const menuId1 = document.getElementById("menuSelect1").value;
       const hasCar2 = document.getElementById("addCar2Checkbox").checked;
@@ -364,11 +360,14 @@
 
       if (cp) {
         if (cp.code.indexOf("TK_") === 0) {
-          // 💡 柔軟判定で1台目と2台目を順番にチェック！
-          if (m1 && isCarMatch(m1.name, cp.targetCar)) {
-            discount = basePrice1; // 1台目が該当車種なら1台目の基本料金を引く
-          } else if (hasCar2 && m2 && isCarMatch(m2.name, cp.targetCar)) {
-            discount = basePrice2; // 2台目が該当車種なら2台目の基本料金を引く！
+          // 💡 1台目・2台目を個別に判定（2台目も確実にキャッチ！）
+          const isCar1Matched = m1 && isCarMatch(m1.name, cp.targetCar);
+          const isCar2Matched = hasCar2 && m2 && isCarMatch(m2.name, cp.targetCar);
+
+          if (isCar1Matched) {
+            discount = basePrice1; // 1台目が該当なら1台目の金額
+          } else if (isCar2Matched) {
+            discount = basePrice2; // 2台目が該当なら2台目の金額（￥5,000）を正しく引く！
           }
         } else {
           // 一般クーポン
