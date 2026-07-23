@@ -198,6 +198,12 @@
       checkSelections();
     }
 
+    // 💡 車種名抽出ヘルパー（メニュー名から「純粋な車種名」を取り出す）
+    function extractCarTypeName(menuName) {
+      if (!menuName) return "";
+      return menuName.split('(')[0].split('（')[0].trim();
+    }
+
     function onCarTypeChange(carNum) {
       const menuId = document.getElementById(`menuSelect${carNum}`).value;
       const optionGroup = document.getElementById(`optionGroup${carNum}`);
@@ -213,7 +219,8 @@
       const selectedMenu = masterMenus.find(m => m.id === menuId);
       if (!selectedMenu) return;
 
-      const filteredOpts = masterOptions.filter(o => o.carType === selectedMenu.name);
+      const pureCarType = extractCarTypeName(selectedMenu.name);
+      const filteredOpts = masterOptions.filter(o => extractCarTypeName(o.carType) === pureCarType);
 
       if (filteredOpts.length > 0) {
         filteredOpts.forEach((opt, idx) => {
@@ -240,20 +247,22 @@
       return new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
     }
 
-    // 💡【修正】誕生月・日付指定・回数券の表示ロジック完全版
     function updateAvailableCoupons() {
       const couponSelect = document.getElementById("couponSelect");
       const couponArea = document.getElementById("couponArea");
       const now = new Date();
       const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-      const currentMonthNum = now.getMonth() + 1; // 7
-      const currentMonthStr = currentMonthNum + "月"; // "7月"
+      const currentMonthStr = (now.getMonth() + 1) + "月";
 
       const menuId1 = document.getElementById("menuSelect1").value;
       const menuId2 = document.getElementById("menuSelect2").value;
       const hasCar2 = document.getElementById("addCar2Checkbox").checked;
+      
       const car1Obj = masterMenus.find(m => m.id === menuId1);
       const car2Obj = hasCar2 ? masterMenus.find(m => m.id === menuId2) : null;
+
+      const car1Type = car1Obj ? extractCarTypeName(car1Obj.name) : "";
+      const car2Type = car2Obj ? extractCarTypeName(car2Obj.name) : "";
 
       couponSelect.innerHTML = '<option value="">-- クーポン・回数券を使わない --</option>';
       let count = 0;
@@ -261,7 +270,7 @@
       masterCoupons.forEach(cp => {
         let isEligible = false;
 
-        // 💡 1. 日付指定クーポンの判定
+        // 1. 日付指定
         if (cp.limitType === "日付指定") {
           const startDate = parseDateStr(cp.startDate);
           const endDate = parseDateStr(cp.endDate);
@@ -273,34 +282,31 @@
             isEligible = true;
           }
         }
-        // 💡 2. 誕生月限定の判定（指定月・顧客誕生月・今月の厳密チェック）
+        // 2. 誕生月限定（J列空欄時は顧客の誕生月＝今月で判定）
         else if (cp.limitType === "誕生月限定") {
-          // J列（validDays）に「8月」や「8」などの指定月がある場合
           let specifiedMonth = String(cp.validDays || "").trim();
-          
-          if (specifiedMonth && specifiedMonth !== "0") {
-            // J列に「8月」と書かれている場合は今月（7月）が8月でないと出さない
+          if (specifiedMonth && specifiedMonth !== "0" && specifiedMonth !== "無期限") {
             if (specifiedMonth.indexOf("月") === -1) specifiedMonth += "月";
             if (currentMonthStr === specifiedMonth && customerInfo.birthMonth === currentMonthStr) {
               isEligible = true;
             }
           } else {
-            // J列未指定なら、純粋に「顧客の誕生月 ＝ 今月」で判定
             if (customerInfo.birthMonth && customerInfo.birthMonth === currentMonthStr) {
               isEligible = true;
             }
           }
         } 
-        // 💡 3. 回数券（TK_）判定
+        // 3. 回数券（TK_）
         else if (cp.code.indexOf("TK_") === 0) {
-          const tCount = (customerInfo.tickets && customerInfo.tickets[cp.targetCar]) || 0;
+          const targetCarName = extractCarTypeName(cp.targetCar);
+          const tCount = (customerInfo.tickets && customerInfo.tickets[targetCarName]) || 0;
           if (tCount > 0) {
-            if (cp.targetCar === "全車種" || (car1Obj && car1Obj.name.trim() === cp.targetCar.trim()) || (car2Obj && car2Obj.name.trim() === cp.targetCar.trim())) {
+            if (targetCarName === "全車種" || car1Type === targetCarName || car2Type === targetCarName) {
               isEligible = true;
             }
           }
         } 
-        // 💡 4. 無条件（お友達紹介など）
+        // 4. 無条件クーポン
         else {
           isEligible = true;
         }
@@ -310,7 +316,8 @@
           opt.value = cp.code;
           let labelText = cp.name;
           if (cp.code.indexOf("TK_") === 0) {
-            const tCount = (customerInfo.tickets && customerInfo.tickets[cp.targetCar]) || 0;
+            const targetCarName = extractCarTypeName(cp.targetCar);
+            const tCount = (customerInfo.tickets && customerInfo.tickets[targetCarName]) || 0;
             labelText += ` (残り${tCount}回)`;
           }
           opt.textContent = labelText;
@@ -322,7 +329,7 @@
       couponArea.style.display = count > 0 ? "block" : "none";
     }
 
-    // 💡【完全修正】1台目・2台目のどちらに該当車種があってもその車種の基本料金を正確に引く計算関数
+    // 💡【完全解決】1台目・2台目の純粋な車種名を正しく抽出してピンポイント割引する関数
     function calculatePrices() {
       const menuId1 = document.getElementById("menuSelect1").value;
       const hasCar2 = document.getElementById("addCar2Checkbox").checked;
@@ -358,13 +365,15 @@
 
       if (cp) {
         if (cp.code.indexOf("TK_") === 0) {
-          // 💡 回数券の対象車種（例: コンパクトカー）と一致する台の基本料金を厳密に取得して引き算する
-          const targetCarName = cp.targetCar.trim();
-          
-          if (m1 && m1.name.trim() === targetCarName) {
-            discount = basePrice1; // 1台目がコンパクトカーなら1台目の基本料金を引く
-          } else if (hasCar2 && m2 && m2.name.trim() === targetCarName) {
-            discount = basePrice2; // 2台目がコンパクトカーなら2台目の基本料金（￥5,000）を引く！
+          const targetCarName = extractCarTypeName(cp.targetCar);
+          const m1CarType = m1 ? extractCarTypeName(m1.name) : "";
+          const m2CarType = (hasCar2 && m2) ? extractCarTypeName(m2.name) : "";
+
+          // 💡 1台目・2台目の車種名を厳密に比較して引き算！
+          if (m1CarType === targetCarName) {
+            discount = basePrice1;
+          } else if (m2CarType === targetCarName) {
+            discount = basePrice2; // 2台目がコンパクトカーなら￥5,000を正しく差し引く！
           }
         } else {
           // 一般クーポン
@@ -499,7 +508,7 @@
       const usedCouponCode = couponSelect.value;
       const usedCouponObj = masterCoupons.find(c => c.code === usedCouponCode);
       const couponName = usedCouponObj ? usedCouponObj.name : "";
-      const targetCar = usedCouponObj ? usedCouponObj.targetCar : "";
+      const targetCar = usedCouponObj ? extractCarTypeName(usedCouponObj.targetCar) : "";
 
       const reservationData = {
         action: "reserve",
