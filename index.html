@@ -233,14 +233,20 @@
       checkSelections();
     }
 
+    // 日付判定ヘルパー関数（文字列比較の揺れ防止）
+    function parseDateStr(str) {
+      if (!str) return null;
+      const parts = str.replace(/-/g, '/').split('/');
+      if (parts.length < 3) return null;
+      return new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+    }
+
     function updateAvailableCoupons() {
       const couponSelect = document.getElementById("couponSelect");
       const couponArea = document.getElementById("couponArea");
       const now = new Date();
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
       const currentMonthStr = (now.getMonth() + 1) + "月";
-      
-      // 今日の日付文字列（yyyy/MM/dd 比較用）
-      const todayStr = now.getFullYear() + "/" + String(now.getMonth() + 1).padStart(2, '0') + "/" + String(now.getDate()).padStart(2, '0');
 
       const menuId1 = document.getElementById("menuSelect1").value;
       const menuId2 = document.getElementById("menuSelect2").value;
@@ -254,10 +260,13 @@
       masterCoupons.forEach(cp => {
         let isEligible = false;
 
-        // 💡 1. 日付指定クーポンの厳密な期間判定
+        // 💡 1. 日付指定の厳密な判定
         if (cp.limitType === "日付指定") {
-          if (cp.startDate && cp.endDate) {
-            if (todayStr >= cp.startDate && todayStr <= cp.endDate) {
+          const startDate = parseDateStr(cp.startDate);
+          const endDate = parseDateStr(cp.endDate);
+          
+          if (startDate && endDate) {
+            if (today >= startDate && today <= endDate) {
               isEligible = true;
             }
           } else {
@@ -270,7 +279,7 @@
             isEligible = true;
           }
         } 
-        // 💡 3. 回数券（TK_）の車種マッチ判定
+        // 💡 3. 回数券（TK_）判定
         else if (cp.code.indexOf("TK_") === 0) {
           const tCount = (customerInfo.tickets && customerInfo.tickets[cp.targetCar]) || 0;
           if (tCount > 0) {
@@ -279,7 +288,7 @@
             }
           }
         } 
-        // 💡 4. 無条件（お友達紹介など）
+        // 💡 4. 無条件クーポン（お友達紹介など）
         else {
           isEligible = true;
         }
@@ -301,7 +310,7 @@
       couponArea.style.display = count > 0 ? "block" : "none";
     }
 
-    // 💡【車種完全一致計算】選択した回数券の対象車種（1台目か2台目）の基本料金を正確に引く関数
+    // 💡【厳密判定】選択された回数券の対象車種（1台目または2台目）の基本料金を引く関数
     function calculatePrices() {
       const menuId1 = document.getElementById("menuSelect1").value;
       const hasCar2 = document.getElementById("addCar2Checkbox").checked;
@@ -337,14 +346,14 @@
 
       if (cp) {
         if (cp.code.indexOf("TK_") === 0) {
-          // 💡 回数券の対象車種とピタリと一致する台の基本料金を探して引く
-          if (m1 && m1.name === cp.targetCar) {
+          // 💡 回数券の場合：1台目か2台目のうち「対象車種と一致する方」の基本料金だけを引く
+          if (m1 && m1.name.trim() === cp.targetCar.trim()) {
             discount = basePrice1;
-          } else if (hasCar2 && m2 && m2.name === cp.targetCar) {
+          } else if (hasCar2 && m2 && m2.name.trim() === cp.targetCar.trim()) {
             discount = basePrice2;
           }
         } else {
-          // 一般クーポンの計算
+          // 一般クーポン
           const targetAmount = (cp.scope === "基本料金のみ") ? totalBasePrice : subTotal;
           if (cp.type === "定額") {
             discount = cp.value;
