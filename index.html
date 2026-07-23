@@ -168,7 +168,7 @@
       select.innerHTML = '<option value="">-- 車種を選んでください --</option>';
       masterMenus.forEach(menu => {
         let opt = document.createElement("option");
-        opt.value = menu.id;
+        opt.value = menu.id; // M001〜M008がセットされます
         opt.textContent = `${menu.name} (¥${menu.price.toLocaleString()} / ${menu.duration}分)`;
         select.appendChild(opt);
       });
@@ -198,11 +198,10 @@
       checkSelections();
     }
 
-    // 💡 あいまい一致関数（空白・全角半角・カッコ内を除去して比較）
     function isCarMatch(menuName, targetCar) {
       if (!menuName || !targetCar) return false;
-      const cleanMenu = String(menuName).replace(/\s+/g, '').replace(/（.*?）|\(.*?\)/g, '').toLowerCase();
-      const cleanTarget = String(targetCar).replace(/\s+/g, '').replace(/（.*?）|\(.*?\)/g, '').toLowerCase();
+      const cleanMenu = String(menuName).replace(/[\s\t\n\r（）\(\)\/]/g, '').toLowerCase();
+      const cleanTarget = String(targetCar).replace(/[\s\t\n\r（）\(\)\/]/g, '').toLowerCase();
       if (cleanTarget === "全車種") return true;
       return cleanMenu === cleanTarget || cleanMenu.includes(cleanTarget) || cleanTarget.includes(cleanMenu);
     }
@@ -263,7 +262,7 @@
       const car1Obj = masterMenus.find(m => m.id === menuId1);
       const car2Obj = hasCar2 ? masterMenus.find(m => m.id === menuId2) : null;
 
-      const previousSelected = couponSelect.value;
+      const currentVal = couponSelect.value;
       couponSelect.innerHTML = '<option value="">-- クーポン・回数券を使わない --</option>';
       let count = 0;
 
@@ -274,9 +273,7 @@
           const startDate = parseDateStr(cp.startDate);
           const endDate = parseDateStr(cp.endDate);
           if (startDate && endDate) {
-            if (today >= startDate && today <= endDate) {
-              isEligible = true;
-            }
+            if (today >= startDate && today <= endDate) isEligible = true;
           } else {
             isEligible = true;
           }
@@ -285,23 +282,20 @@
           let specifiedMonth = String(cp.validDays || "").trim();
           if (specifiedMonth && specifiedMonth !== "0" && specifiedMonth !== "無期限") {
             if (specifiedMonth.indexOf("月") === -1) specifiedMonth += "月";
-            if (currentMonthStr === specifiedMonth && customerInfo.birthMonth === currentMonthStr) {
-              isEligible = true;
-            }
+            if (currentMonthStr === specifiedMonth && customerInfo.birthMonth === currentMonthStr) isEligible = true;
           } else {
-            if (customerInfo.birthMonth && customerInfo.birthMonth === currentMonthStr) {
-              isEligible = true;
-            }
+            if (customerInfo.birthMonth && customerInfo.birthMonth === currentMonthStr) isEligible = true;
           }
         } 
         else if (cp.code.indexOf("TK_") === 0) {
-          const tCount = (customerInfo.tickets && customerInfo.tickets[cp.targetCar]) || 0;
+          // 💡 ID（M001等）または車種名で残数を判定
+          const targetKey = cp.targetMenuId || cp.targetCar;
+          const tCount = (customerInfo.tickets && (customerInfo.tickets[targetKey] || customerInfo.tickets[cp.targetCar])) || 0;
           if (tCount > 0) {
-            const isMatch1 = car1Obj && isCarMatch(car1Obj.name, cp.targetCar);
-            const isMatch2 = car2Obj && isCarMatch(car2Obj.name, cp.targetCar);
-            if (cp.targetCar === "全車種" || isMatch1 || isMatch2) {
-              isEligible = true;
-            }
+            // ID一致判定（M001〜M008）
+            const isMatch1 = car1Obj && (car1Obj.id === cp.targetMenuId || isCarMatch(car1Obj.name, cp.targetCar));
+            const isMatch2 = car2Obj && (car2Obj.id === cp.targetMenuId || isCarMatch(car2Obj.name, cp.targetCar));
+            if (cp.targetCar === "全車種" || isMatch1 || isMatch2) isEligible = true;
           }
         } 
         else {
@@ -313,7 +307,8 @@
           opt.value = cp.code;
           let labelText = cp.name;
           if (cp.code.indexOf("TK_") === 0) {
-            const tCount = (customerInfo.tickets && customerInfo.tickets[cp.targetCar]) || 0;
+            const targetKey = cp.targetMenuId || cp.targetCar;
+            const tCount = (customerInfo.tickets && (customerInfo.tickets[targetKey] || customerInfo.tickets[cp.targetCar])) || 0;
             labelText += ` (残り${tCount}回)`;
           }
           opt.textContent = labelText;
@@ -322,14 +317,11 @@
         }
       });
 
-      if (previousSelected) {
-        couponSelect.value = previousSelected;
-      }
-
+      if (currentVal) couponSelect.value = currentVal;
       couponArea.style.display = count > 0 ? "block" : "none";
     }
 
-    // 💡【完全解解・再計算関数】毎回確実に値をクリアして1台目・2台目を正確に引き算する
+    // 💡【ID直結・超高精度計算関数】ID（M001等）で1台目・2台目の金額を直接引き算する
     function calculatePrices() {
       const menuId1 = document.getElementById("menuSelect1").value;
       const hasCar2 = document.getElementById("addCar2Checkbox").checked;
@@ -341,7 +333,7 @@
       let totalDuration = 0;
 
       const m1 = masterMenus.find(m => m.id === menuId1);
-      if (m1) { basePrice1 = Number(m1.price) || 0; totalDuration += m1.duration; }
+      if (m1) { basePrice1 = Number(m1.price) || 0; totalDuration += Number(m1.duration) || 0; }
       document.querySelectorAll('#optionList1 input[type="checkbox"]:checked').forEach(box => {
         optionPrice += parseInt(box.dataset.price || "0", 10);
         totalDuration += parseInt(box.dataset.duration || "0", 10);
@@ -349,7 +341,7 @@
 
       if (hasCar2 && menuId2) {
         const m2 = masterMenus.find(m => m.id === menuId2);
-        if (m2) { basePrice2 = Number(m2.price) || 0; totalDuration += m2.duration; }
+        if (m2) { basePrice2 = Number(m2.price) || 0; totalDuration += Number(m2.duration) || 0; }
         document.querySelectorAll('#optionList2 input[type="checkbox"]:checked').forEach(box => {
           optionPrice += parseInt(box.dataset.price || "0", 10);
           totalDuration += parseInt(box.dataset.duration || "0", 10);
@@ -363,24 +355,24 @@
       const selectedCouponCode = document.getElementById("couponSelect").value;
       const cp = masterCoupons.find(c => c.code === selectedCouponCode);
 
-      if (cp) {
+      if (cp && selectedCouponCode !== "") {
         if (cp.code.indexOf("TK_") === 0) {
-          // 💡 1台目・2台目の車種マッチ判定を毎回新規計算！
-          const isCar1Matched = m1 && isCarMatch(m1.name, cp.targetCar);
-          const isCar2Matched = hasCar2 && m2 && isCarMatch(m2.name, cp.targetCar);
+          // 💡 ID（M001等）による完全一致判定（文字ブレ0%）
+          const isMatchCar1 = m1 && (m1.id === cp.targetMenuId || isCarMatch(m1.name, cp.targetCar));
+          const isMatchCar2 = hasCar2 && m2 && (m2.id === cp.targetMenuId || isCarMatch(m2.name, cp.targetCar));
 
-          if (isCar1Matched) {
-            discount = basePrice1; // 1台目の基本料金（例: ￥4,000）
-          } else if (isCar2Matched) {
-            discount = basePrice2; // 2台目の基本料金（例: ￥5,000）を正しくセット！
+          if (isMatchCar1) {
+            discount = basePrice1; // 1台目の基本料金を差し引く
+          } else if (isMatchCar2) {
+            discount = basePrice2; // 2台目の基本料金（￥5,000等）を差し引く！
           }
         } else {
           // 一般クーポン
           const targetAmount = (cp.scope === "基本料金のみ") ? totalBasePrice : subTotal;
           if (cp.type === "定額") {
-            discount = cp.value;
+            discount = Number(cp.value) || 0;
           } else if (cp.type === "定率") {
-            discount = Math.round(targetAmount * (cp.value / 100));
+            discount = Math.round(targetAmount * ((Number(cp.value) || 0) / 100));
           }
         }
       }
@@ -388,13 +380,16 @@
       if (discount > subTotal) discount = subTotal;
       const finalPrice = subTotal - discount;
 
-      // 画面描画の即時反映
+      // 画面数値を毎回ゼロから上書き描画
       document.getElementById("subTotalPriceDisplay").innerText = subTotal.toLocaleString();
       document.getElementById("discountPriceDisplay").innerText = discount.toLocaleString();
       document.getElementById("totalPriceDisplay").innerText = finalPrice.toLocaleString();
       document.getElementById("totalDurationDisplay").innerText = totalDuration;
 
-      document.getElementById("discountRow").style.display = discount > 0 ? "block" : "none";
+      const discountRow = document.getElementById("discountRow");
+      if (discountRow) {
+        discountRow.style.display = discount > 0 ? "block" : "none";
+      }
 
       return { totalDuration: totalDuration, finalPrice: finalPrice };
     }
@@ -508,6 +503,7 @@
       const usedCouponCode = couponSelect.value;
       const usedCouponObj = masterCoupons.find(c => c.code === usedCouponCode);
       const couponName = usedCouponObj ? usedCouponObj.name : "";
+      const targetMenuId = usedCouponObj ? usedCouponObj.targetMenuId : "";
       const targetCar = usedCouponObj ? usedCouponObj.targetCar : "";
 
       const reservationData = {
@@ -525,6 +521,7 @@
         totalDuration: totalDuration,
         usedCouponCode: usedCouponCode,
         couponName: couponName,
+        targetMenuId: targetMenuId,
         targetCar: targetCar
       };
 
