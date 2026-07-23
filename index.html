@@ -236,12 +236,17 @@
     function updateAvailableCoupons() {
       const couponSelect = document.getElementById("couponSelect");
       const couponArea = document.getElementById("couponArea");
-      const currentMonthStr = (new Date().getMonth() + 1) + "月";
+      const now = new Date();
+      const currentMonthStr = (now.getMonth() + 1) + "月";
+      
+      // 今日の日付文字列（yyyy/MM/dd 比較用）
+      const todayStr = now.getFullYear() + "/" + String(now.getMonth() + 1).padStart(2, '0') + "/" + String(now.getDate()).padStart(2, '0');
 
       const menuId1 = document.getElementById("menuSelect1").value;
       const menuId2 = document.getElementById("menuSelect2").value;
+      const hasCar2 = document.getElementById("addCar2Checkbox").checked;
       const car1Obj = masterMenus.find(m => m.id === menuId1);
-      const car2Obj = masterMenus.find(m => m.id === menuId2);
+      const car2Obj = hasCar2 ? masterMenus.find(m => m.id === menuId2) : null;
 
       couponSelect.innerHTML = '<option value="">-- クーポン・回数券を使わない --</option>';
       let count = 0;
@@ -249,13 +254,24 @@
       masterCoupons.forEach(cp => {
         let isEligible = false;
 
-        if (cp.limitType === "誕生月限定") {
+        // 💡 1. 日付指定クーポンの厳密な期間判定
+        if (cp.limitType === "日付指定") {
+          if (cp.startDate && cp.endDate) {
+            if (todayStr >= cp.startDate && todayStr <= cp.endDate) {
+              isEligible = true;
+            }
+          } else {
+            isEligible = true;
+          }
+        }
+        // 💡 2. 誕生月限定判定
+        else if (cp.limitType === "誕生月限定") {
           if (customerInfo.birthMonth && customerInfo.birthMonth === currentMonthStr) {
             isEligible = true;
           }
         } 
+        // 💡 3. 回数券（TK_）の車種マッチ判定
         else if (cp.code.indexOf("TK_") === 0) {
-          // 車種別の残数をチェック
           const tCount = (customerInfo.tickets && customerInfo.tickets[cp.targetCar]) || 0;
           if (tCount > 0) {
             if (cp.targetCar === "全車種" || (car1Obj && car1Obj.name === cp.targetCar) || (car2Obj && car2Obj.name === cp.targetCar)) {
@@ -263,6 +279,7 @@
             }
           }
         } 
+        // 💡 4. 無条件（お友達紹介など）
         else {
           isEligible = true;
         }
@@ -284,6 +301,7 @@
       couponArea.style.display = count > 0 ? "block" : "none";
     }
 
+    // 💡【車種完全一致計算】選択した回数券の対象車種（1台目か2台目）の基本料金を正確に引く関数
     function calculatePrices() {
       const menuId1 = document.getElementById("menuSelect1").value;
       const hasCar2 = document.getElementById("addCar2Checkbox").checked;
@@ -319,14 +337,14 @@
 
       if (cp) {
         if (cp.code.indexOf("TK_") === 0) {
+          // 💡 回数券の対象車種とピタリと一致する台の基本料金を探して引く
           if (m1 && m1.name === cp.targetCar) {
             discount = basePrice1;
           } else if (hasCar2 && m2 && m2.name === cp.targetCar) {
             discount = basePrice2;
-          } else {
-            discount = basePrice1;
           }
         } else {
+          // 一般クーポンの計算
           const targetAmount = (cp.scope === "基本料金のみ") ? totalBasePrice : subTotal;
           if (cp.type === "定額") {
             discount = cp.value;
