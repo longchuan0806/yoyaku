@@ -93,6 +93,7 @@
 
     <div id="couponArea" class="coupon-box" style="display: none;">
       <div class="coupon-title">🎟️ クーポン・回数券を利用する（併用不可）</div>
+      <!-- 💡 切り替えの瞬間に100%再計算するイベント処理を追加！ -->
       <select id="couponSelect" class="form-select" onchange="calculatePrices();">
         <option value="">-- クーポン・回数券を使わない --</option>
       </select>
@@ -168,7 +169,7 @@
       select.innerHTML = '<option value="">-- 車種を選んでください --</option>';
       masterMenus.forEach(menu => {
         let opt = document.createElement("option");
-        opt.value = menu.id; // M001〜M008 がセットされます
+        opt.value = menu.id; // M001〜M008
         opt.textContent = `${menu.name} (¥${menu.price.toLocaleString()} / ${menu.duration}分)`;
         select.appendChild(opt);
       });
@@ -248,7 +249,7 @@
       return new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
     }
 
-    // 💡【回数券＆一般クーポン完全統合表示】ID直結で判定
+    // 💡【プルダウン生成処理】回数券＋一般クーポンを完全抽出
     function updateAvailableCoupons() {
       const couponSelect = document.getElementById("couponSelect");
       const couponArea = document.getElementById("couponArea");
@@ -270,15 +271,14 @@
       masterCoupons.forEach(cp => {
         let isEligible = false;
 
-        // A. 回数券（TK_）の完全復活判定（ID: M001〜M008 でチェック）
+        // A. 回数券（TK_）
         if (cp.code.indexOf("TK_") === 0) {
-          const targetMenuId = cp.targetMenuId; // G列 (例: M001)
+          const targetMenuId = cp.targetMenuId; // M001〜M008
           const tCount = (customerInfo.tickets && customerInfo.tickets[targetMenuId]) || 0;
           
           if (tCount > 0) {
-            // 選択された1台目・2台目のメニューID（menuSelect.value）と完全照合！
-            const isMatch1 = car1Obj && (car1Obj.id === targetMenuId || isCarMatch(car1Obj.name, cp.targetCar));
-            const isMatch2 = car2Obj && (car2Obj.id === targetMenuId || isCarMatch(car2Obj.name, cp.targetCar));
+            const isMatch1 = car1Obj && car1Obj.id === targetMenuId;
+            const isMatch2 = car2Obj && car2Obj.id === targetMenuId;
             
             if (cp.targetCar === "全車種" || isMatch1 || isMatch2) {
               isEligible = true;
@@ -335,7 +335,7 @@
       couponArea.style.display = count > 0 ? "block" : "none";
     }
 
-    // 💡【ID直結・超高精度再計算関数】ID（M001等）で1台目・2台目を完璧識別
+    // 💡【完全独立・即時上書き計算処理】ID直結で1台目・2台目を完璧識別！
     function calculatePrices() {
       const menuId1 = document.getElementById("menuSelect1").value;
       const hasCar2 = document.getElementById("addCar2Checkbox").checked;
@@ -370,20 +370,20 @@
       const cp = masterCoupons.find(c => c.code === selectedCouponCode);
 
       if (cp && selectedCouponCode !== "") {
-        // 💡 1. 回数券の判定・計算（ID: M001〜M008 で直接一致）
+        // 💡 1. 回数券（ID: M001〜M008 で直接一致判定）
         if (cp.code.indexOf("TK_") === 0) {
-          const targetMenuId = cp.targetMenuId; // G列 (例: M001)
+          const targetMenuId = cp.targetMenuId; // 例: M001
           
-          const isMatchCar1 = m1 && (m1.id === targetMenuId || isCarMatch(m1.name, cp.targetCar));
-          const isMatchCar2 = hasCar2 && m2 && (m2.id === targetMenuId || isCarMatch(m2.name, cp.targetCar));
+          const isMatchCar1 = m1 && m1.id === targetMenuId;
+          const isMatchCar2 = hasCar2 && m2 && m2.id === targetMenuId;
 
           if (isMatchCar1) {
             discount = basePrice1; // 1台目の基本料金を差し引く
           } else if (isMatchCar2) {
-            discount = basePrice2; // 2台目の基本料金（例: ￥5,000）を正しく差し引く！
+            discount = basePrice2; // 2台目の基本料金を正しく差し引く！
           }
         } 
-        // 💡 2. 一般クーポンの計算
+        // 💡 2. 一般クーポン
         else {
           const targetAmount = (cp.scope === "基本料金のみ") ? totalBasePrice : subTotal;
           if (cp.type === "定額") {
@@ -397,6 +397,7 @@
       if (discount > subTotal) discount = subTotal;
       const finalPrice = subTotal - discount;
 
+      // 画面描画の全上書き
       document.getElementById("subTotalPriceDisplay").innerText = subTotal.toLocaleString();
       document.getElementById("discountPriceDisplay").innerText = discount.toLocaleString();
       document.getElementById("totalPriceDisplay").innerText = finalPrice.toLocaleString();
