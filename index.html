@@ -248,7 +248,6 @@
       return new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
     }
 
-    // 💡【厳密フィルタ修正】顧客リストのX列/Y列が「あり」の時だけ紹介クーポンを表示
     function updateAvailableCoupons() {
       const couponSelect = document.getElementById("couponSelect");
       const couponArea = document.getElementById("couponArea");
@@ -263,19 +262,13 @@
       masterCoupons.forEach(cp => {
         let isEligible = false;
 
-        // 回数券（TK_）はスキップ
-        if (cp.code.indexOf("TK_") === 0) {
-          return;
-        }
+        if (cp.code.indexOf("TK_") === 0) return;
 
-        // 1. お友達紹介クーポン（INTRO1000など）の判定
         if (cp.code === "INTRO1000" || cp.name.includes("紹介")) {
-          // X列（被紹介者）またはY列（紹介者）のどちらかが「あり」の場合のみ表示！
           if (customerInfo.hasIntroCoupon || customerInfo.hasReferralReward) {
             isEligible = true;
           }
         }
-        // 2. 日付指定クーポン
         else if (cp.limitType === "日付指定") {
           const startDate = parseDateStr(cp.startDate);
           const endDate = parseDateStr(cp.endDate);
@@ -285,7 +278,6 @@
             isEligible = true;
           }
         }
-        // 3. 誕生月限定クーポン
         else if (cp.limitType === "誕生月限定") {
           let specifiedMonth = String(cp.validDays || "").trim();
           if (specifiedMonth && specifiedMonth !== "0" && specifiedMonth !== "無期限") {
@@ -295,7 +287,6 @@
             if (customerInfo.birthMonth && customerInfo.birthMonth === currentMonthStr) isEligible = true;
           }
         } 
-        // 4. その他無条件
         else {
           isEligible = true;
         }
@@ -368,7 +359,7 @@
         discountRow.style.display = discount > 0 ? "block" : "none";
       }
 
-      return { totalDuration: totalDuration, finalPrice: finalPrice };
+      return { totalDuration: totalDuration, finalPrice: finalPrice, discountPrice: discount };
     }
 
     function checkSelections() {
@@ -474,6 +465,7 @@
       }
 
       const totalPrice = document.getElementById("totalPriceDisplay").innerText;
+      const discountPrice = document.getElementById("discountPriceDisplay").innerText;
       const totalDuration = document.getElementById("totalDurationDisplay").innerText;
 
       const couponSelect = document.getElementById("couponSelect");
@@ -493,6 +485,7 @@
         hasCar2: hasCar2,
         car2Detail: car2Detail,
         totalPrice: totalPrice,
+        discountPrice: discountPrice, // 💡 値引き額をGASに送信
         totalDuration: totalDuration,
         usedCouponCode: usedCouponCode,
         couponName: couponName
