@@ -92,9 +92,9 @@
     </div>
 
     <div id="couponArea" class="coupon-box" style="display: none;">
-      <div class="coupon-title">🎟️ クーポンを利用する（併用不可）</div>
+      <div class="coupon-title">🎟️ クーポン・回数券を利用する（併用不可）</div>
       <select id="couponSelect" class="form-select" onchange="calculatePrices();">
-        <option value="">-- クーポンを使わない --</option>
+        <option value="">-- クーポン・回数券を使わない --</option>
       </select>
     </div>
 
@@ -121,9 +121,9 @@
     let masterStaffs = []; 
     let masterOptions = [];
     let masterCoupons = [];
-    let customerInfo = { birthMonth: "", hasIntroCoupon: false, hasReferralReward: false };
+    let customerInfo = { birthMonth: "", hasIntroCoupon: false, hasReferralReward: false, tickets: {} };
     
-    const GAS_URL = "https://script.google.com/macros/s/AKfycbzQjRvVauGYUbKowJ8oCq281XsGt-5RIcCdk0BGrzc_08mMxeLHM96X8UV2zWSwp3tHVw/exec”;
+    const GAS_URL = "https://script.google.com/macros/s/AKfycbzQjRvVauGYUbKowJ8oCq281XsGt-5RIcCdk0BGrzc_08mMxeLHM96X8UV2zWSwp3tHVw/exec";
     
     liff.init({ liffId: "2010605097-p2ZIk7qb" })
       .then(() => {
@@ -147,7 +147,7 @@
           masterStaffs = data.staffs;
           masterOptions = data.options || [];
           masterCoupons = data.coupons || [];
-          customerInfo = data.customer || { birthMonth: "", hasIntroCoupon: false, hasReferralReward: false };
+          customerInfo = data.customer || { birthMonth: "", hasIntroCoupon: false, hasReferralReward: false, tickets: {} };
 
           const shopSelect = document.getElementById("shopSelect");
           data.shops.forEach(shop => {
@@ -248,6 +248,7 @@
       return new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
     }
 
+    // 💡【回数券表示復活版】お友達紹介・回数券・各種クーポンの表示制御
     function updateAvailableCoupons() {
       const couponSelect = document.getElementById("couponSelect");
       const couponArea = document.getElementById("couponArea");
@@ -255,20 +256,39 @@
       const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
       const currentMonthStr = (now.getMonth() + 1) + "月";
 
+      const menuId1 = document.getElementById("menuSelect1").value;
+      const menuId2 = document.getElementById("menuSelect2").value;
+      const hasCar2 = document.getElementById("addCar2Checkbox").checked;
+      
+      const car1Obj = masterMenus.find(m => m.id === menuId1);
+      const car2Obj = hasCar2 ? masterMenus.find(m => m.id === menuId2) : null;
+
       const currentVal = couponSelect.value;
-      couponSelect.innerHTML = '<option value="">-- クーポンを使わない --</option>';
+      couponSelect.innerHTML = '<option value="">-- クーポン・回数券を使わない --</option>';
       let count = 0;
 
       masterCoupons.forEach(cp => {
         let isEligible = false;
 
-        if (cp.code.indexOf("TK_") === 0) return;
-
-        if (cp.code === "INTRO1000" || cp.name.includes("紹介")) {
+        // 1. 回数券（TK_）の表示判定
+        if (cp.code.indexOf("TK_") === 0) {
+          const targetKey = cp.targetMenuId || cp.targetCar;
+          const tCount = (customerInfo.tickets && (customerInfo.tickets[targetKey] || customerInfo.tickets[cp.targetCar])) || 0;
+          if (tCount > 0) {
+            const isMatch1 = car1Obj && (car1Obj.id === cp.targetMenuId || isCarMatch(car1Obj.name, cp.targetCar));
+            const isMatch2 = car2Obj && (car2Obj.id === cp.targetMenuId || isCarMatch(car2Obj.name, cp.targetCar));
+            if (cp.targetCar === "全車種" || isMatch1 || isMatch2) {
+              isEligible = true;
+            }
+          }
+        }
+        // 2. お友達紹介クーポン
+        else if (cp.code === "INTRO1000" || cp.name.includes("紹介")) {
           if (customerInfo.hasIntroCoupon || customerInfo.hasReferralReward) {
             isEligible = true;
           }
         }
+        // 3. 日付指定クーポン
         else if (cp.limitType === "日付指定") {
           const startDate = parseDateStr(cp.startDate);
           const endDate = parseDateStr(cp.endDate);
@@ -278,6 +298,7 @@
             isEligible = true;
           }
         }
+        // 4. 誕生月限定クーポン
         else if (cp.limitType === "誕生月限定") {
           let specifiedMonth = String(cp.validDays || "").trim();
           if (specifiedMonth && specifiedMonth !== "0" && specifiedMonth !== "無期限") {
@@ -287,6 +308,7 @@
             if (customerInfo.birthMonth && customerInfo.birthMonth === currentMonthStr) isEligible = true;
           }
         } 
+        // 5. その他無条件クーポン
         else {
           isEligible = true;
         }
@@ -294,7 +316,13 @@
         if (isEligible) {
           let opt = document.createElement("option");
           opt.value = cp.code;
-          opt.textContent = cp.name;
+          let labelText = cp.name;
+          if (cp.code.indexOf("TK_") === 0) {
+            const targetKey = cp.targetMenuId || cp.targetCar;
+            const tCount = (customerInfo.tickets && (customerInfo.tickets[targetKey] || customerInfo.tickets[cp.targetCar])) || 0;
+            labelText += ` (残り${tCount}回)`;
+          }
+          opt.textContent = labelText;
           couponSelect.appendChild(opt);
           count++;
         }
@@ -304,6 +332,7 @@
       couponArea.style.display = count > 0 ? "block" : "none";
     }
 
+    // 💡【回数券計算復元】回数券選択時は対象車種の基本料金を自動引き算する
     function calculatePrices() {
       const menuId1 = document.getElementById("menuSelect1").value;
       const hasCar2 = document.getElementById("addCar2Checkbox").checked;
@@ -338,11 +367,24 @@
       const cp = masterCoupons.find(c => c.code === selectedCouponCode);
 
       if (cp && selectedCouponCode !== "") {
-        const targetAmount = (cp.scope === "基本料金のみ") ? totalBasePrice : subTotal;
-        if (cp.type === "定額") {
-          discount = Number(cp.value) || 0;
-        } else if (cp.type === "定率") {
-          discount = Math.round(targetAmount * ((Number(cp.value) || 0) / 100));
+        if (cp.code.indexOf("TK_") === 0) {
+          // 回数券：対象車種IDまたは名称と一致する台の基本料金をマイナス
+          const isMatchCar1 = m1 && (m1.id === cp.targetMenuId || isCarMatch(m1.name, cp.targetCar));
+          const isMatchCar2 = hasCar2 && m2 && (m2.id === cp.targetMenuId || isCarMatch(m2.name, cp.targetCar));
+
+          if (isMatchCar1) {
+            discount = basePrice1;
+          } else if (isMatchCar2) {
+            discount = basePrice2;
+          }
+        } else {
+          // 一般クーポン
+          const targetAmount = (cp.scope === "基本料金のみ") ? totalBasePrice : subTotal;
+          if (cp.type === "定額") {
+            discount = Number(cp.value) || 0;
+          } else if (cp.type === "定率") {
+            discount = Math.round(targetAmount * ((Number(cp.value) || 0) / 100));
+          }
         }
       }
 
@@ -472,6 +514,8 @@
       const usedCouponCode = couponSelect.value;
       const usedCouponObj = masterCoupons.find(c => c.code === usedCouponCode);
       const couponName = usedCouponObj ? usedCouponObj.name : "";
+      const targetMenuId = usedCouponObj ? usedCouponObj.targetMenuId : "";
+      const targetCar = usedCouponObj ? usedCouponObj.targetCar : "";
 
       const reservationData = {
         action: "reserve",
@@ -485,10 +529,12 @@
         hasCar2: hasCar2,
         car2Detail: car2Detail,
         totalPrice: totalPrice,
-        discountPrice: discountPrice, // 💡 値引き額をGASに送信
+        discountPrice: discountPrice,
         totalDuration: totalDuration,
         usedCouponCode: usedCouponCode,
-        couponName: couponName
+        couponName: couponName,
+        targetMenuId: targetMenuId,
+        targetCar: targetCar
       };
 
       fetch(GAS_URL, { method: "POST", body: JSON.stringify(reservationData) })
