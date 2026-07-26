@@ -92,9 +92,9 @@
     </div>
 
     <div id="couponArea" class="coupon-box" style="display: none;">
-      <div class="coupon-title">🎟️ クーポン・回数券を利用する（併用不可）</div>
+      <div class="coupon-title">🎟️ クーポンを利用する（併用不可）</div>
       <select id="couponSelect" class="form-select" onchange="calculatePrices();">
-        <option value="">-- クーポン・回数券を使わない --</option>
+        <option value="">-- クーポンを使わない --</option>
       </select>
     </div>
 
@@ -121,7 +121,7 @@
     let masterStaffs = []; 
     let masterOptions = [];
     let masterCoupons = [];
-    let customerInfo = { birthMonth: "", tickets: {} };
+    let customerInfo = { birthMonth: "", hasIntroCoupon: false, hasReferralReward: false };
     
     const GAS_URL = "https://script.google.com/macros/s/AKfycbzQjRvVauGYUbKowJ8oCq281XsGt-5RIcCdk0BGrzc_08mMxeLHM96X8UV2zWSwp3tHVw/exec";
     
@@ -147,7 +147,7 @@
           masterStaffs = data.staffs;
           masterOptions = data.options || [];
           masterCoupons = data.coupons || [];
-          customerInfo = data.customer || { birthMonth: "", tickets: {} };
+          customerInfo = data.customer || { birthMonth: "", hasIntroCoupon: false, hasReferralReward: false };
 
           const shopSelect = document.getElementById("shopSelect");
           data.shops.forEach(shop => {
@@ -168,7 +168,7 @@
       select.innerHTML = '<option value="">-- 車種を選んでください --</option>';
       masterMenus.forEach(menu => {
         let opt = document.createElement("option");
-        opt.value = menu.id; // M001〜M008がセットされます
+        opt.value = menu.id;
         opt.textContent = `${menu.name} (¥${menu.price.toLocaleString()} / ${menu.duration}分)`;
         select.appendChild(opt);
       });
@@ -248,6 +248,7 @@
       return new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
     }
 
+    // 💡【厳密フィルタ修正】顧客リストのX列/Y列が「あり」の時だけ紹介クーポンを表示
     function updateAvailableCoupons() {
       const couponSelect = document.getElementById("couponSelect");
       const couponArea = document.getElementById("couponArea");
@@ -255,21 +256,27 @@
       const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
       const currentMonthStr = (now.getMonth() + 1) + "月";
 
-      const menuId1 = document.getElementById("menuSelect1").value;
-      const menuId2 = document.getElementById("menuSelect2").value;
-      const hasCar2 = document.getElementById("addCar2Checkbox").checked;
-      
-      const car1Obj = masterMenus.find(m => m.id === menuId1);
-      const car2Obj = hasCar2 ? masterMenus.find(m => m.id === menuId2) : null;
-
       const currentVal = couponSelect.value;
-      couponSelect.innerHTML = '<option value="">-- クーポン・回数券を使わない --</option>';
+      couponSelect.innerHTML = '<option value="">-- クーポンを使わない --</option>';
       let count = 0;
 
       masterCoupons.forEach(cp => {
         let isEligible = false;
 
-        if (cp.limitType === "日付指定") {
+        // 回数券（TK_）はスキップ
+        if (cp.code.indexOf("TK_") === 0) {
+          return;
+        }
+
+        // 1. お友達紹介クーポン（INTRO1000など）の判定
+        if (cp.code === "INTRO1000" || cp.name.includes("紹介")) {
+          // X列（被紹介者）またはY列（紹介者）のどちらかが「あり」の場合のみ表示！
+          if (customerInfo.hasIntroCoupon || customerInfo.hasReferralReward) {
+            isEligible = true;
+          }
+        }
+        // 2. 日付指定クーポン
+        else if (cp.limitType === "日付指定") {
           const startDate = parseDateStr(cp.startDate);
           const endDate = parseDateStr(cp.endDate);
           if (startDate && endDate) {
@@ -278,6 +285,7 @@
             isEligible = true;
           }
         }
+        // 3. 誕生月限定クーポン
         else if (cp.limitType === "誕生月限定") {
           let specifiedMonth = String(cp.validDays || "").trim();
           if (specifiedMonth && specifiedMonth !== "0" && specifiedMonth !== "無期限") {
@@ -287,17 +295,7 @@
             if (customerInfo.birthMonth && customerInfo.birthMonth === currentMonthStr) isEligible = true;
           }
         } 
-        else if (cp.code.indexOf("TK_") === 0) {
-          // 💡 ID（M001等）または車種名で残数を判定
-          const targetKey = cp.targetMenuId || cp.targetCar;
-          const tCount = (customerInfo.tickets && (customerInfo.tickets[targetKey] || customerInfo.tickets[cp.targetCar])) || 0;
-          if (tCount > 0) {
-            // ID一致判定（M001〜M008）
-            const isMatch1 = car1Obj && (car1Obj.id === cp.targetMenuId || isCarMatch(car1Obj.name, cp.targetCar));
-            const isMatch2 = car2Obj && (car2Obj.id === cp.targetMenuId || isCarMatch(car2Obj.name, cp.targetCar));
-            if (cp.targetCar === "全車種" || isMatch1 || isMatch2) isEligible = true;
-          }
-        } 
+        // 4. その他無条件
         else {
           isEligible = true;
         }
@@ -305,13 +303,7 @@
         if (isEligible) {
           let opt = document.createElement("option");
           opt.value = cp.code;
-          let labelText = cp.name;
-          if (cp.code.indexOf("TK_") === 0) {
-            const targetKey = cp.targetMenuId || cp.targetCar;
-            const tCount = (customerInfo.tickets && (customerInfo.tickets[targetKey] || customerInfo.tickets[cp.targetCar])) || 0;
-            labelText += ` (残り${tCount}回)`;
-          }
-          opt.textContent = labelText;
+          opt.textContent = cp.name;
           couponSelect.appendChild(opt);
           count++;
         }
@@ -321,7 +313,6 @@
       couponArea.style.display = count > 0 ? "block" : "none";
     }
 
-    // 💡【ID直結・超高精度計算関数】ID（M001等）で1台目・2台目の金額を直接引き算する
     function calculatePrices() {
       const menuId1 = document.getElementById("menuSelect1").value;
       const hasCar2 = document.getElementById("addCar2Checkbox").checked;
@@ -356,31 +347,17 @@
       const cp = masterCoupons.find(c => c.code === selectedCouponCode);
 
       if (cp && selectedCouponCode !== "") {
-        if (cp.code.indexOf("TK_") === 0) {
-          // 💡 ID（M001等）による完全一致判定（文字ブレ0%）
-          const isMatchCar1 = m1 && (m1.id === cp.targetMenuId || isCarMatch(m1.name, cp.targetCar));
-          const isMatchCar2 = hasCar2 && m2 && (m2.id === cp.targetMenuId || isCarMatch(m2.name, cp.targetCar));
-
-          if (isMatchCar1) {
-            discount = basePrice1; // 1台目の基本料金を差し引く
-          } else if (isMatchCar2) {
-            discount = basePrice2; // 2台目の基本料金（￥5,000等）を差し引く！
-          }
-        } else {
-          // 一般クーポン
-          const targetAmount = (cp.scope === "基本料金のみ") ? totalBasePrice : subTotal;
-          if (cp.type === "定額") {
-            discount = Number(cp.value) || 0;
-          } else if (cp.type === "定率") {
-            discount = Math.round(targetAmount * ((Number(cp.value) || 0) / 100));
-          }
+        const targetAmount = (cp.scope === "基本料金のみ") ? totalBasePrice : subTotal;
+        if (cp.type === "定額") {
+          discount = Number(cp.value) || 0;
+        } else if (cp.type === "定率") {
+          discount = Math.round(targetAmount * ((Number(cp.value) || 0) / 100));
         }
       }
 
       if (discount > subTotal) discount = subTotal;
       const finalPrice = subTotal - discount;
 
-      // 画面数値を毎回ゼロから上書き描画
       document.getElementById("subTotalPriceDisplay").innerText = subTotal.toLocaleString();
       document.getElementById("discountPriceDisplay").innerText = discount.toLocaleString();
       document.getElementById("totalPriceDisplay").innerText = finalPrice.toLocaleString();
@@ -503,8 +480,6 @@
       const usedCouponCode = couponSelect.value;
       const usedCouponObj = masterCoupons.find(c => c.code === usedCouponCode);
       const couponName = usedCouponObj ? usedCouponObj.name : "";
-      const targetMenuId = usedCouponObj ? usedCouponObj.targetMenuId : "";
-      const targetCar = usedCouponObj ? usedCouponObj.targetCar : "";
 
       const reservationData = {
         action: "reserve",
@@ -520,9 +495,7 @@
         totalPrice: totalPrice,
         totalDuration: totalDuration,
         usedCouponCode: usedCouponCode,
-        couponName: couponName,
-        targetMenuId: targetMenuId,
-        targetCar: targetCar
+        couponName: couponName
       };
 
       fetch(GAS_URL, { method: "POST", body: JSON.stringify(reservationData) })
