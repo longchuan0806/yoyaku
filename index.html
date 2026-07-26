@@ -168,7 +168,7 @@
       select.innerHTML = '<option value="">-- 車種を選んでください --</option>';
       masterMenus.forEach(menu => {
         let opt = document.createElement("option");
-        opt.value = menu.id;
+        opt.value = menu.id; // M001〜M008
         opt.textContent = `${menu.name} (¥${menu.price.toLocaleString()} / ${menu.duration}分)`;
         select.appendChild(opt);
       });
@@ -198,6 +198,7 @@
       checkSelections();
     }
 
+    // 💡 あいまい判定ヘルパー
     function isCarMatch(menuName, targetCar) {
       if (!menuName || !targetCar) return false;
       const cleanMenu = String(menuName).replace(/[\s\t\n\r（）\(\)\/]/g, '').toLowerCase();
@@ -248,7 +249,7 @@
       return new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
     }
 
-    // 💡【回数券表示復活版】お友達紹介・回数券・各種クーポンの表示制御
+    // 💡【回数券認識ロジック完全修正】
     function updateAvailableCoupons() {
       const couponSelect = document.getElementById("couponSelect");
       const couponArea = document.getElementById("couponArea");
@@ -270,11 +271,21 @@
       masterCoupons.forEach(cp => {
         let isEligible = false;
 
-        // 1. 回数券（TK_）の表示判定
+        // 1. 回数券（TK_で始まるコード）
         if (cp.code.indexOf("TK_") === 0) {
-          const targetKey = cp.targetMenuId || cp.targetCar;
-          const tCount = (customerInfo.tickets && (customerInfo.tickets[targetKey] || customerInfo.tickets[cp.targetCar])) || 0;
+          // 残数をID(M001等)または車種名から探す
+          let tCount = 0;
+          if (customerInfo && customerInfo.tickets) {
+            if (cp.targetMenuId && customerInfo.tickets[cp.targetMenuId] !== undefined) {
+              tCount = Number(customerInfo.tickets[cp.targetMenuId]) || 0;
+            }
+            if (tCount === 0 && cp.targetCar && customerInfo.tickets[cp.targetCar] !== undefined) {
+              tCount = Number(customerInfo.tickets[cp.targetCar]) || 0;
+            }
+          }
+
           if (tCount > 0) {
+            // 💡 選択車種との一致（ID一致 OR 車種名一致）
             const isMatch1 = car1Obj && (car1Obj.id === cp.targetMenuId || isCarMatch(car1Obj.name, cp.targetCar));
             const isMatch2 = car2Obj && (car2Obj.id === cp.targetMenuId || isCarMatch(car2Obj.name, cp.targetCar));
             if (cp.targetCar === "全車種" || isMatch1 || isMatch2) {
@@ -308,7 +319,7 @@
             if (customerInfo.birthMonth && customerInfo.birthMonth === currentMonthStr) isEligible = true;
           }
         } 
-        // 5. その他無条件クーポン
+        // 5. その他一般クーポン
         else {
           isEligible = true;
         }
@@ -318,8 +329,7 @@
           opt.value = cp.code;
           let labelText = cp.name;
           if (cp.code.indexOf("TK_") === 0) {
-            const targetKey = cp.targetMenuId || cp.targetCar;
-            const tCount = (customerInfo.tickets && (customerInfo.tickets[targetKey] || customerInfo.tickets[cp.targetCar])) || 0;
+            let tCount = (customerInfo.tickets && (customerInfo.tickets[cp.targetMenuId] || customerInfo.tickets[cp.targetCar])) || 0;
             labelText += ` (残り${tCount}回)`;
           }
           opt.textContent = labelText;
@@ -332,7 +342,7 @@
       couponArea.style.display = count > 0 ? "block" : "none";
     }
 
-    // 💡【回数券計算復元】回数券選択時は対象車種の基本料金を自動引き算する
+    // 💡【計算ロジック完全復元】
     function calculatePrices() {
       const menuId1 = document.getElementById("menuSelect1").value;
       const hasCar2 = document.getElementById("addCar2Checkbox").checked;
@@ -368,7 +378,7 @@
 
       if (cp && selectedCouponCode !== "") {
         if (cp.code.indexOf("TK_") === 0) {
-          // 回数券：対象車種IDまたは名称と一致する台の基本料金をマイナス
+          // 回数券：ID一致 or 車種名一致の台の基本料金を引く
           const isMatchCar1 = m1 && (m1.id === cp.targetMenuId || isCarMatch(m1.name, cp.targetCar));
           const isMatchCar2 = hasCar2 && m2 && (m2.id === cp.targetMenuId || isCarMatch(m2.name, cp.targetCar));
 
