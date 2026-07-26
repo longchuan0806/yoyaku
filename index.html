@@ -93,7 +93,6 @@
 
     <div id="couponArea" class="coupon-box" style="display: none;">
       <div class="coupon-title">🎟️ クーポン・回数券を利用する（併用不可）</div>
-      <!-- 💡 切り替えの瞬間に100%再計算するイベント処理を追加！ -->
       <select id="couponSelect" class="form-select" onchange="calculatePrices();">
         <option value="">-- クーポン・回数券を使わない --</option>
       </select>
@@ -169,7 +168,7 @@
       select.innerHTML = '<option value="">-- 車種を選んでください --</option>';
       masterMenus.forEach(menu => {
         let opt = document.createElement("option");
-        opt.value = menu.id; // M001〜M008
+        opt.value = menu.id;
         opt.textContent = `${menu.name} (¥${menu.price.toLocaleString()} / ${menu.duration}分)`;
         select.appendChild(opt);
       });
@@ -249,7 +248,7 @@
       return new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
     }
 
-    // 💡【プルダウン生成処理】回数券＋一般クーポンを完全抽出
+    // 💡【2台同時完全対応】1台目と2台目の両方の回数券を同時にリストへ出現させる！
     function updateAvailableCoupons() {
       const couponSelect = document.getElementById("couponSelect");
       const couponArea = document.getElementById("couponArea");
@@ -273,13 +272,14 @@
 
         // A. 回数券（TK_）
         if (cp.code.indexOf("TK_") === 0) {
-          const targetMenuId = cp.targetMenuId; // M001〜M008
+          const targetMenuId = cp.targetMenuId;
           const tCount = (customerInfo.tickets && customerInfo.tickets[targetMenuId]) || 0;
           
           if (tCount > 0) {
             const isMatch1 = car1Obj && car1Obj.id === targetMenuId;
             const isMatch2 = car2Obj && car2Obj.id === targetMenuId;
             
+            // 💡 1台目または2台目のいずれかが一致すればOK！
             if (cp.targetCar === "全車種" || isMatch1 || isMatch2) {
               isEligible = true;
             }
@@ -335,7 +335,7 @@
       couponArea.style.display = count > 0 ? "block" : "none";
     }
 
-    // 💡【完全独立・即時上書き計算処理】ID直結で1台目・2台目を完璧識別！
+    // 💡【2台独立・高精度計算処理】1台目と2台目を正確に識別してマイナスする！
     function calculatePrices() {
       const menuId1 = document.getElementById("menuSelect1").value;
       const hasCar2 = document.getElementById("addCar2Checkbox").checked;
@@ -378,9 +378,9 @@
           const isMatchCar2 = hasCar2 && m2 && m2.id === targetMenuId;
 
           if (isMatchCar1) {
-            discount = basePrice1; // 1台目の基本料金を差し引く
+            discount = basePrice1; // 1台目の基本料金（￥4,400）を差し引く
           } else if (isMatchCar2) {
-            discount = basePrice2; // 2台目の基本料金を正しく差し引く！
+            discount = basePrice2; // 2台目の基本料金（￥5,500）を差し引く！
           }
         } 
         // 💡 2. 一般クーポン
@@ -397,7 +397,7 @@
       if (discount > subTotal) discount = subTotal;
       const finalPrice = subTotal - discount;
 
-      // 画面描画の全上書き
+      // 画面描画の即時反映
       document.getElementById("subTotalPriceDisplay").innerText = subTotal.toLocaleString();
       document.getElementById("discountPriceDisplay").innerText = discount.toLocaleString();
       document.getElementById("totalPriceDisplay").innerText = finalPrice.toLocaleString();
