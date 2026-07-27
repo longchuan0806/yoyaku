@@ -248,7 +248,6 @@
       return new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
     }
 
-    // 💡【2台同時完全対応】1台目と2台目の両方の回数券を同時にリストへ出現させる！
     function updateAvailableCoupons() {
       const couponSelect = document.getElementById("couponSelect");
       const couponArea = document.getElementById("couponArea");
@@ -263,14 +262,14 @@
       const car1Obj = masterMenus.find(m => m.id === menuId1);
       const car2Obj = hasCar2 ? masterMenus.find(m => m.id === menuId2) : null;
 
-      const currentVal = couponSelect.value;
+      // 現在選ばれている選択値をバックアップ
+      const savedSelectedVal = couponSelect.value;
       couponSelect.innerHTML = '<option value="">-- クーポン・回数券を使わない --</option>';
       let count = 0;
 
       masterCoupons.forEach(cp => {
         let isEligible = false;
 
-        // A. 回数券（TK_）
         if (cp.code.indexOf("TK_") === 0) {
           const targetMenuId = cp.targetMenuId;
           const tCount = (customerInfo.tickets && customerInfo.tickets[targetMenuId]) || 0;
@@ -278,20 +277,16 @@
           if (tCount > 0) {
             const isMatch1 = car1Obj && car1Obj.id === targetMenuId;
             const isMatch2 = car2Obj && car2Obj.id === targetMenuId;
-            
-            // 💡 1台目または2台目のいずれかが一致すればOK！
             if (cp.targetCar === "全車種" || isMatch1 || isMatch2) {
               isEligible = true;
             }
           }
         }
-        // B. お友達紹介クーポン
         else if (cp.code === "INTRO1000" || cp.name.includes("紹介")) {
           if (customerInfo.hasIntroCoupon || customerInfo.hasReferralReward) {
             isEligible = true;
           }
         }
-        // C. 日付指定クーポン
         else if (cp.limitType === "日付指定") {
           const startDate = parseDateStr(cp.startDate);
           const endDate = parseDateStr(cp.endDate);
@@ -301,7 +296,6 @@
             isEligible = true;
           }
         }
-        // D. 誕生月限定クーポン
         else if (cp.limitType === "誕生月限定") {
           let specifiedMonth = String(cp.validDays || "").trim();
           if (specifiedMonth && specifiedMonth !== "0" && specifiedMonth !== "無期限") {
@@ -311,7 +305,6 @@
             if (customerInfo.birthMonth && customerInfo.birthMonth === currentMonthStr) isEligible = true;
           }
         } 
-        // E. その他無条件
         else {
           isEligible = true;
         }
@@ -331,11 +324,14 @@
         }
       });
 
-      if (currentVal) couponSelect.value = currentVal;
+      // 💡【重要修正】リスト再作成後、以前選んでいた選択肢がまだ存在すれば再セットする
+      if (savedSelectedVal) {
+        couponSelect.value = savedSelectedVal;
+      }
+      
       couponArea.style.display = count > 0 ? "block" : "none";
     }
 
-    // 💡【2台独立・高精度計算処理】1台目と2台目を正確に識別してマイナスする！
     function calculatePrices() {
       const menuId1 = document.getElementById("menuSelect1").value;
       const hasCar2 = document.getElementById("addCar2Checkbox").checked;
@@ -370,20 +366,18 @@
       const cp = masterCoupons.find(c => c.code === selectedCouponCode);
 
       if (cp && selectedCouponCode !== "") {
-        // 💡 1. 回数券（ID: M001〜M008 で直接一致判定）
         if (cp.code.indexOf("TK_") === 0) {
-          const targetMenuId = cp.targetMenuId; // 例: M001
+          const targetMenuId = cp.targetMenuId;
           
           const isMatchCar1 = m1 && m1.id === targetMenuId;
           const isMatchCar2 = hasCar2 && m2 && m2.id === targetMenuId;
 
           if (isMatchCar1) {
-            discount = basePrice1; // 1台目の基本料金（￥4,400）を差し引く
+            discount = basePrice1;
           } else if (isMatchCar2) {
-            discount = basePrice2; // 2台目の基本料金（￥5,500）を差し引く！
+            discount = basePrice2;
           }
         } 
-        // 💡 2. 一般クーポン
         else {
           const targetAmount = (cp.scope === "基本料金のみ") ? totalBasePrice : subTotal;
           if (cp.type === "定額") {
@@ -397,7 +391,6 @@
       if (discount > subTotal) discount = subTotal;
       const finalPrice = subTotal - discount;
 
-      // 画面描画の即時反映
       document.getElementById("subTotalPriceDisplay").innerText = subTotal.toLocaleString();
       document.getElementById("discountPriceDisplay").innerText = discount.toLocaleString();
       document.getElementById("totalPriceDisplay").innerText = finalPrice.toLocaleString();
@@ -423,7 +416,7 @@
 
       if (shop && staff && menuId1 && (!hasCar2 || (hasCar2 && menuId2))) {
         updateAvailableCoupons();
-        const priceInfo = calculatePrices();
+        const priceInfo = calculatePrices(); // 💡 クーポン更新後に確実に再計算を実行！
 
         summaryBox.style.display = "block";
 
