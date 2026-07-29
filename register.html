@@ -14,43 +14,43 @@
   </style>
 </head>
 <body>
-  <h2>顧客情報のご登録</h2>
-  <form id="customerForm">
-    <input type="hidden" id="lineName" name="lineName">
-    <input type="hidden" id="lineId" name="lineId">
-    <input type="hidden" id="source" name="source">
-    <input type="hidden" id="ref_id" name="ref_id">
+  <div id="formContainer">
+    <h2>顧客情報のご登録</h2>
+    <form id="customerForm">
+      <input type="hidden" id="lineName" name="lineName">
+      <input type="hidden" id="lineId" name="lineId">
+      <input type="hidden" id="source" name="source">
+      <input type="hidden" id="ref_id" name="ref_id">
+      <label>お名前（氏名）</label>
+      <input type="text" name="realName" placeholder="山田 太郎" required>
+      
+      <label>フリガナ</label>
+      <input type="text" name="furigana" placeholder="ヤマダ タロウ" required>
+      
+      <label>性別</label>
+      <select name="gender" required><option value="">選択してください</option><option value="男性">男性</option><option value="女性">女性</option><option value="その他">その他</option></select>
+      
+      <label>誕生月</label>
+      <select name="birthMonth" required>
+        <option value="">誕生月を選択してください</option>
+        <option value="1月">1月</option><option value="2月">2月</option><option value="3月">3月</option>
+        <option value="4月">4月</option><option value="5月">5月</option><option value="6月">6月</option>
+        <option value="7月">7月</option><option value="8月">8月</option><option value="9月">9月</option>
+        <option value="10月">10月</option><option value="11月">11月</option><option value="12月">12月</option>
+      </select>
+      <label>住所</label>
+      <input type="text" name="address" placeholder="○県○市○町1-2-3" required>
+      
+      <label>電話番号</label>
+      <input type="tel" name="tel" placeholder="09012345678" required>
+      
+      <label>年齢層</label>
+      <select name="ageGroup" required><option value="">選択してください</option><option value="10代">10代</option><option value="20代">20代</option><option value="30代">30代</option><option value="40代">40代</option><option value="50代">50代</option><option value="60代">60代</option><option value="70代以上">70代以上</option></select>
+      
+      <button type="button" id="submitBtn" onclick="submitForm()" disabled>LINE確認中...</button>
+    </form>
+  </div>
 
-    <label>お名前（氏名）</label>
-    <input type="text" name="realName" placeholder="山田 太郎" required>
-    
-    <label>フリガナ</label>
-    <input type="text" name="furigana" placeholder="ヤマダ タロウ" required>
-    
-    <label>性別</label>
-    <select name="gender" required><option value="">選択してください</option><option value="男性">男性</option><option value="女性">女性</option><option value="その他">その他</option></select>
-    
-    <!-- 💡誕生月プルダウン項目を追加 -->
-    <label>誕生月</label>
-    <select name="birthMonth" required>
-      <option value="">誕生月を選択してください</option>
-      <option value="1月">1月</option><option value="2月">2月</option><option value="3月">3月</option>
-      <option value="4月">4月</option><option value="5月">5月</option><option value="6月">6月</option>
-      <option value="7月">7月</option><option value="8月">8月</option><option value="9月">9月</option>
-      <option value="10月">10月</option><option value="11月">11月</option><option value="12月">12月</option>
-    </select>
-
-    <label>住所</label>
-    <input type="text" name="address" placeholder="○県○市○町1-2-3" required>
-    
-    <label>電話番号</label>
-    <input type="tel" name="tel" placeholder="09012345678" required>
-    
-    <label>年齢層</label>
-    <select name="ageGroup" required><option value="">選択してください</option><option value="10代">10代</option><option value="20代">20代</option><option value="30代">30代</option><option value="40代">40代</option><option value="50代">50代</option><option value="60代">60代</option><option value="70代以上">70代以上</option></select>
-    
-    <button type="button" id="submitBtn" onclick="submitForm()" disabled>LINE確認中...</button>
-  </form>
   <script>
     const GAS_URL = "https://script.google.com/macros/s/AKfycbzQjRvVauGYUbKowJ8oCq281XsGt-5RIcCdk0BGrzc_08mMxeLHM96X8UV2zWSwp3tHVw/exec"; 
     
@@ -67,7 +67,6 @@
       
       document.getElementById('source').value = sourceName;
       document.getElementById('ref_id').value = refId;
-
       liff.init({ liffId: "2010605097-TOFbC8qQ" })
         .then(() => {
           if (liff.isLoggedIn()) {
@@ -83,12 +82,14 @@
       
       setTimeout(unlockButton, 2000);
     };
+
     function unlockButton() {
       const btn = document.getElementById('submitBtn');
       btn.disabled = false;
       btn.innerText = "登録する";
       btn.style.backgroundColor = "#40E0D0";
     }
+
     function submitForm() {
       const form = document.getElementById('customerForm');
       if(!form.checkValidity()) { alert('未入力の項目があります。'); return; }
@@ -107,8 +108,24 @@
       .then(res => res.json())
       .then(result => {
         if(result.status === "success") {
-          alert("顧客リストへの登録が完了しました！");
-          liff.closeWindow();
+          // 💡 登録成功時、画面全体を公式LINE追加案内画面へ切り替え
+          document.getElementById('formContainer').innerHTML = `
+            <div style="text-align: center; padding: 20px 5px; font-family: sans-serif;">
+              <div style="font-size: 50px; margin-bottom: 10px;">🎉</div>
+              <h2 style="color: #333; font-size: 20px; margin-bottom: 15px;">ご登録が完了しました！</h2>
+              <p style="color: #666; font-size: 14px; line-height: 1.6; margin-bottom: 25px;">
+                洗車のご予約や各種ご連絡を行うために、<br>
+                引き続き<strong>「公式LINEの友達追加」</strong>をお願いいたします。
+              </p>
+              
+              <!-- 🔥 公式LINE 友達追加特大ボタン -->
+              <a href="https://lin.ee/X0ehiTU" 
+                 target="_blank"
+                 style="display: block; width: 85%; max-width: 300px; margin: 0 auto; background-color: #06C755; color: #ffffff; font-weight: bold; font-size: 18px; padding: 16px 0; border-radius: 30px; text-decoration: none; text-align: center; box-shadow: 0 4px 10px rgba(6, 199, 85, 0.3);">
+                 💬 公式LINEを友達追加する
+              </a>
+            </div>
+          `;
         }
       })
       .catch(err => { alert("通信エラーが発生しました。"); unlockButton(); });
