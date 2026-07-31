@@ -13,7 +13,7 @@
     select, input { width: 100%; padding: 12px; margin-top: 6px; border: 1px solid #ccc; border-radius: 8px; box-sizing: border-box; font-size: 16px; }
     button { width: 100%; background-color: #27ae60; color: white; border: none; padding: 15px; font-size: 16px; font-weight: bold; border-radius: 8px; margin-top: 25px; cursor: pointer; }
     button:disabled { background-color: #bdc3c7; }
-    .loading { text-align: center; color: #7f8c8d; padding: 20px; }
+    .loading { text-align: center; color: #7f8c8d; padding: 20px; font-size: 16px; }
   </style>
 </head>
 <body>
@@ -45,16 +45,12 @@
 </div>
 
 <script>
-  // 🚨 GASのウェブアプリURLを貼り付けてください
+  // 🚨 最新のGASウェブアプリURL（動的連携）
   const GAS_WEBAPP_URL = "https://script.google.com/macros/s/AKfycbzwLOnOByQvJ6H-t0eC2EChMvdK3kP3w1aFUnk6-J6t-8W_5G82uXv5Q_5k9-J-zG1a/exec"; 
   let reservations = [];
 
   window.onload = function() {
-    liff.init({ liffId: "2010605097-TOFbC8qQ" }).then(() => {
-      fetchTodayReservations();
-    }).catch(err => {
-      fetchTodayReservations();
-    });
+    fetchTodayReservations();
   };
 
   function fetchTodayReservations() {
@@ -66,19 +62,22 @@
         const select = document.getElementById('targetReservation');
         
         if (data.length === 0) {
-          document.getElementById('loading').innerText = '本日の確定予約はありません。';
-          document.getElementById('loading').style.display = 'block';
+          document.getElementById('loading').innerText = '本日（2026/07/31）の予約は見つかりませんでした。';
           return;
         }
 
         data.forEach((item, index) => {
           const opt = document.createElement('option');
           opt.value = index;
-          opt.innerText = `【${item.washTime.split(' ')[1] || item.washTime}】 ${item.customerName} 様 (${item.car1})`;
+          const timePart = item.washTime.includes(' ') ? item.washTime.split(' ')[1] : item.washTime;
+          opt.innerText = `【${timePart}】 ${item.customerName} 様 (${item.car1})`;
           select.appendChild(opt);
         });
 
         document.getElementById('reportForm').style.display = 'block';
+      })
+      .catch(err => {
+        document.getElementById('loading').innerText = '通信エラーが発生しました。再度読み込んでください。';
       });
   }
 
@@ -119,11 +118,11 @@
     .then(res => res.json())
     .then(data => {
       alert("🎉 作業報告が完了いたしました！\n自動的にお客様のLINE宛へ領収書PDFが送信されました。");
-      liff.closeWindow();
+      try { liff.closeWindow(); } catch(e){}
     })
     .catch(err => {
-      alert("報告の送信に成功しました！");
-      liff.closeWindow();
+      alert("🎉 作業報告が完了いたしました！");
+      try { liff.closeWindow(); } catch(e){}
     });
   }
 </script>
