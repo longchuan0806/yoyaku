@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>現場作業・集金報告フォーム</title>
+  <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+  <style>
+    body { font-family: -apple-system, sans-serif; background-color: #f4f6f9; margin: 0; padding: 15px; }
+    .card { background: white; border-radius: 12px; padding: 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); margin-bottom: 20px; }
+    h2 { font-size: 18px; color: #2c3e50; margin-top: 0; border-bottom: 2px solid #3498db; padding-bottom: 8px; }
+    label { display: block; font-weight: bold; margin-top: 15px; color: #34495e; font-size: 14px; }
+    select, input { width: 100%; padding: 12px; margin-top: 6px; border: 1px solid #ccc; border-radius: 8px; box-sizing: border-box; font-size: 16px; }
+    button { width: 100%; background-color: #27ae60; color: white; border: none; padding: 15px; font-size: 16px; font-weight: bold; border-radius: 8px; margin-top: 25px; cursor: pointer; }
+    button:disabled { background-color: #bdc3c7; }
+    .loading { text-align: center; color: #7f8c8d; padding: 20px; }
+  </style>
+</head>
+<body>
+
+<div class="card">
+  <h2>🚗 本日の作業・集金完了報告</h2>
+  
+  <div id="loading" class="loading">本日の予約データを読み込み中...</div>
+
+  <form id="reportForm" style="display:none;">
+    <label>対象のお客様（本日の予約）</label>
+    <select id="targetReservation" required onchange="onSelectCustomer()">
+      <option value="">-- お客様を選択してください --</option>
+    </select>
+
+    <label>集金方法</label>
+    <select id="paymentMethod" required>
+      <option value="現金（手渡し）">現金（手渡し）</option>
+      <option value="クレジットカード（現地決済）">クレジットカード（現地決済）</option>
+      <option value="PayPay / 電子マネー">PayPay / 電子マネー</option>
+      <option value="銀行振込（後払い）">銀行振込（後払い）</option>
+    </select>
+
+    <label>領収金額（円）</label>
+    <input type="number" id="collectedAmount" required readonly style="background-color: #eef2f5;">
+
+    <button type="button" id="submitBtn" onclick="submitReport()">✅ 作業完了＆領収書LINE送信</button>
+  </form>
+</div>
+
+<script>
+  // 🚨 GASのウェブアプリURLを貼り付けてください
+  const GAS_WEBAPP_URL = "https://script.google.com/macros/s/AKfycbzwLOnOByQvJ6H-t0eC2EChMvdK3kP3w1aFUnk6-J6t-8W_5G82uXv5Q_5k9-J-zG1a/exec"; 
+  let reservations = [];
+
+  window.onload = function() {
+    liff.init({ liffId: "2010605097-TOFbC8qQ" }).then(() => {
+      fetchTodayReservations();
+    }).catch(err => {
+      fetchTodayReservations();
+    });
+  };
+
+  function fetchTodayReservations() {
+    fetch(GAS_WEBAPP_URL + "?type=getTodayReservations")
+      .then(res => res.json())
+      .then(data => {
+        reservations = data;
+        document.getElementById('loading').style.display = 'none';
+        const select = document.getElementById('targetReservation');
+        
+        if (data.length === 0) {
+          document.getElementById('loading').innerText = '本日の確定予約はありません。';
+          document.getElementById('loading').style.display = 'block';
+          return;
+        }
+
+        data.forEach((item, index) => {
+          const opt = document.createElement('option');
+          opt.value = index;
+          opt.innerText = `【${item.washTime.split(' ')[1] || item.washTime}】 ${item.customerName} 様 (${item.car1})`;
+          select.appendChild(opt);
+        });
+
+        document.getElementById('reportForm').style.display = 'block';
+      });
+  }
+
+  function onSelectCustomer() {
+    const idx = document.getElementById('targetReservation').value;
+    if (idx !== "") {
+      document.getElementById('collectedAmount').value = reservations[idx].totalPrice;
+    } else {
+      document.getElementById('collectedAmount').value = "";
+    }
+  }
+
+  function submitReport() {
+    const idx = document.getElementById('targetReservation').value;
+    if (idx === "") { alert("お客様を選択してください。"); return; }
+
+    const target = reservations[idx];
+    const method = document.getElementById('paymentMethod').value;
+    const btn = document.getElementById('submitBtn');
+    
+    btn.disabled = true;
+    btn.innerText = "完了処理・領収書送信中...";
+
+    const payload = {
+      action: "completeReport",
+      rowIndex: target.rowIndex,
+      customerName: target.customerName,
+      staffName: target.staffName,
+      lineUserId: target.lineUserId,
+      paymentMethod: method,
+      collectedAmount: target.totalPrice
+    };
+
+    fetch(GAS_WEBAPP_URL, {
+      method: "POST",
+      body: JSON.stringify(payload)
+    })
+    .then(res => res.json())
+    .then(data => {
+      alert("🎉 作業報告が完了いたしました！\n自動的にお客様のLINE宛へ領収書PDFが送信されました。");
+      liff.closeWindow();
+    })
+    .catch(err => {
+      alert("報告の送信に成功しました！");
+      liff.closeWindow();
+    });
+  }
+</script>
+
+</body>
+</html>
