@@ -47,25 +47,20 @@
 </div>
 
 <script>
-  // 🚨 ダブルクォーテーションの中に「デプロイを管理」でコピーした最新URLを貼り付けてください！
   const GAS_WEBAPP_URL = "https://script.google.com/macros/s/AKfycbzQjRvVauGYUbKowJ8oCq281XsGt-5RIcCdk0BGrzc_08mMxeLHM96X8UV2zWSwp3tHVw/exec"; 
-  
   let allReservations = [];
 
   window.onload = function() {
-    try {
-      liff.init({ liffId: "2010605097-TOFbC8qQ" }).then(() => {
-        if (liff.isLoggedIn()) {
-          liff.getProfile().then(profile => {
-            fetchTodayReservationsJSONP(profile.userId);
-          }).catch(() => fetchTodayReservationsJSONP(""));
-        } else {
-          fetchTodayReservationsJSONP("");
-        }
-      }).catch(() => fetchTodayReservationsJSONP(""));
-    } catch(e) {
-      fetchTodayReservationsJSONP("");
-    }
+    // LIFF初期化後に確実にLINE IDを取得して読み込み実行
+    liff.init({ liffId: "2010605097-TOFbC8qQ" }).then(() => {
+      if (liff.isLoggedIn()) {
+        liff.getProfile().then(profile => {
+          fetchTodayReservationsJSONP(profile.userId);
+        }).catch(() => fetchTodayReservationsJSONP(""));
+      } else {
+        liff.login();
+      }
+    }).catch(() => fetchTodayReservationsJSONP(""));
   };
 
   function fetchTodayReservationsJSONP(userId) {
