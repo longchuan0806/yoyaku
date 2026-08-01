@@ -45,8 +45,8 @@
 </div>
 
 <script>
-  // 🚨 最新のGASウェブアプリURL（動的連携）
-  const GAS_WEBAPP_URL = "https://script.google.com/macros/s/AKfycbzwLOnOByQvJ6H-t0eC2EChMvdK3kP3w1aFUnk6-J6t-8W_5G82uXv5Q_5k9-J-zG1a/exec"; 
+  // 🎯 最新のお写真に写っているデプロイURLへ差し替え完了！
+  const GAS_WEBAPP_URL = "https://script.google.com/macros/s/AKfycbzQjRvVauGYubKowJ8oCq281XsGt-5RlcNW2sWZR-xGkgIpWUqFBFXhZBO87fEbkJWPSUgk4j65FfXp2zHrxePbcjT/exec"; 
   let reservations = [];
 
   window.onload = function() {
@@ -62,7 +62,7 @@
         const select = document.getElementById('targetReservation');
         
         if (data.length === 0) {
-          document.getElementById('loading').innerText = '本日（2026/07/31）の予約は見つかりませんでした。';
+          document.getElementById('loading').innerText = '本日の対象予約は見つかりませんでした。';
           return;
         }
 
