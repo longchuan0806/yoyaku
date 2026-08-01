@@ -49,21 +49,33 @@
 <script>
   const GAS_WEBAPP_URL = "https://script.google.com/macros/s/AKfycbzQjRvVauGYUbKowJ8oCq281XsGt-5RIcCdk0BGrzc_08mMxeLHM96X8UV2zWSwp3tHVw/exec"; 
   let allReservations = [];
+  let fetchedData = false;
 
   window.onload = function() {
-    // LIFF初期化後に確実にLINE IDを取得して読み込み実行
-    liff.init({ liffId: "2010605097-TOFbC8qQ" }).then(() => {
-      if (liff.isLoggedIn()) {
-        liff.getProfile().then(profile => {
-          fetchTodayReservationsJSONP(profile.userId);
-        }).catch(() => fetchTodayReservationsJSONP(""));
-      } else {
-        liff.login();
-      }
-    }).catch(() => fetchTodayReservationsJSONP(""));
+    // 💡 1.5秒経過してもLINE認証が終わらない場合は自動でデータ取得を強行実行（ストップ防止）
+    setTimeout(() => {
+      if (!fetchedData) fetchTodayReservationsJSONP("");
+    }, 1500);
+
+    try {
+      liff.init({ liffId: "2010605097-TOFbC8qQ" }).then(() => {
+        if (liff.isLoggedIn()) {
+          liff.getProfile().then(profile => {
+            fetchTodayReservationsJSONP(profile.userId);
+          }).catch(() => fetchTodayReservationsJSONP(""));
+        } else {
+          fetchTodayReservationsJSONP("");
+        }
+      }).catch(() => fetchTodayReservationsJSONP(""));
+    } catch(e) {
+      fetchTodayReservationsJSONP("");
+    }
   };
 
   function fetchTodayReservationsJSONP(userId) {
+    if (fetchedData) return;
+    fetchedData = true;
+
     const script = document.createElement('script');
     script.src = `${GAS_WEBAPP_URL}?type=getTodayReservations&lineUserId=${encodeURIComponent(userId)}&callback=handleReservationData`;
     document.body.appendChild(script);
