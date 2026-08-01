@@ -45,40 +45,42 @@
 </div>
 
 <script>
-  // 🎯 最新のお写真に写っているデプロイURLへ差し替え完了！
+  // 🚨 最新のGASウェブアプリURL
   const GAS_WEBAPP_URL = "https://script.google.com/macros/s/AKfycbzQjRvVauGYUbKowJ8oCq281XsGt-5RIcCdk0BGrzc_08mMxeLHM96X8UV2zWSwp3tHVw/exec"; 
   let reservations = [];
 
   window.onload = function() {
-    fetchTodayReservations();
+    fetchTodayReservationsJSONP();
   };
 
-  function fetchTodayReservations() {
-    fetch(GAS_WEBAPP_URL + "?type=getTodayReservations")
-      .then(res => res.json())
-      .then(data => {
-        reservations = data;
-        document.getElementById('loading').style.display = 'none';
-        const select = document.getElementById('targetReservation');
-        
-        if (data.length === 0) {
-          document.getElementById('loading').innerText = '本日の対象予約は見つかりませんでした。';
-          return;
-        }
+  // 💡【CORS回避】JSONP方式で安全にデータを読み込む関数
+  function fetchTodayReservationsJSONP() {
+    const script = document.createElement('script');
+    script.src = `${GAS_WEBAPP_URL}?type=getTodayReservations&callback=handleReservationData`;
+    document.body.appendChild(script);
+  }
 
-        data.forEach((item, index) => {
-          const opt = document.createElement('option');
-          opt.value = index;
-          const timePart = item.washTime.includes(' ') ? item.washTime.split(' ')[1] : item.washTime;
-          opt.innerText = `【${timePart}】 ${item.customerName} 様 (${item.car1})`;
-          select.appendChild(opt);
-        });
+  // 💡 GASからのJSONPデータ受取口
+  function handleReservationData(data) {
+    reservations = data;
+    document.getElementById('loading').style.display = 'none';
+    const select = document.getElementById('targetReservation');
+    
+    if (!data || data.length === 0) {
+      document.getElementById('loading').innerText = '本日の対象予約は見つかりませんでした。';
+      document.getElementById('loading').style.display = 'block';
+      return;
+    }
 
-        document.getElementById('reportForm').style.display = 'block';
-      })
-      .catch(err => {
-        document.getElementById('loading').innerText = '通信エラーが発生しました。再度読み込んでください。';
-      });
+    data.forEach((item, index) => {
+      const opt = document.createElement('option');
+      opt.value = index;
+      const timePart = item.washTime.includes(' ') ? item.washTime.split(' ')[1] : item.washTime;
+      opt.innerText = `【${timePart}】 ${item.customerName} 様 (${item.car1})`;
+      select.appendChild(opt);
+    });
+
+    document.getElementById('reportForm').style.display = 'block';
   }
 
   function onSelectCustomer() {
