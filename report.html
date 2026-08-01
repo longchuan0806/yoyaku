@@ -26,6 +26,13 @@
   <div id="loading" class="loading">本日の予約データを読み込み中...</div>
 
   <form id="reportForm" style="display:none;">
+    <div id="manualStaffBox" style="display:none;">
+      <label>👤 担当スタッフを選択</label>
+      <select id="manualStaffSelect" onchange="onManualStaffChange()">
+        <option value="">-- あなたの氏名を選択してください --</option>
+      </select>
+    </div>
+
     <label>📋 対象のお客様（本日の担当予約時間順）</label>
     <select id="targetReservation" required onchange="onSelectCustomer()">
       <option value="">-- お客様を選択してください --</option>
@@ -48,74 +55,110 @@
 
 <script>
   const GAS_WEBAPP_URL = "https://script.google.com/macros/s/AKfycbzQjRvVauGYUbKowJ8oCq281XsGt-5RIcCdk0BGrzc_08mMxeLHM96X8UV2zWSwp3tHVw/exec"; 
-  let allReservations = [];
-  let fetchedData = false;
+  let rawReservations = [];
+  let currentStaff = "";
 
   window.onload = function() {
-    // 💡 1.5秒経過してもLINE認証が終わらない場合は自動でデータ取得を強行実行（ストップ防止）
+    // 💡 0.3秒で即座にデータ通信を開始（フリーズを100%回避）
     setTimeout(() => {
-      if (!fetchedData) fetchTodayReservationsJSONP("");
-    }, 1500);
-
-    try {
-      liff.init({ liffId: "2010605097-TOFbC8qQ" }).then(() => {
-        if (liff.isLoggedIn()) {
-          liff.getProfile().then(profile => {
-            fetchTodayReservationsJSONP(profile.userId);
-          }).catch(() => fetchTodayReservationsJSONP(""));
-        } else {
-          fetchTodayReservationsJSONP("");
-        }
-      }).catch(() => fetchTodayReservationsJSONP(""));
-    } catch(e) {
-      fetchTodayReservationsJSONP("");
-    }
+      try {
+        liff.init({ liffId: "2010605097-TOFbC8qQ" }).then(() => {
+          if (liff.isLoggedIn()) {
+            liff.getProfile().then(profile => {
+              fetchDataJSONP(profile.userId);
+            }).catch(() => fetchDataJSONP(""));
+          } else {
+            fetchDataJSONP("");
+          }
+        }).catch(() => fetchDataJSONP(""));
+      } catch(e) {
+        fetchDataJSONP("");
+      }
+    }, 100);
   };
 
-  function fetchTodayReservationsJSONP(userId) {
-    if (fetchedData) return;
-    fetchedData = true;
-
+  function fetchDataJSONP(userId) {
     const script = document.createElement('script');
-    script.src = `${GAS_WEBAPP_URL}?type=getTodayReservations&lineUserId=${encodeURIComponent(userId)}&callback=handleReservationData`;
+    script.src = `${GAS_WEBAPP_URL}?type=getTodayReservations&lineUserId=${encodeURIComponent(userId)}&callback=handleData`;
     document.body.appendChild(script);
   }
 
-  function handleReservationData(response) {
+  function handleData(response) {
     document.getElementById('loading').style.display = 'none';
-    
-    if (response && response.staffName) {
-      document.getElementById('staffNameDisplay').innerText = response.staffName + " さん";
-      document.getElementById('staffBadge').style.display = 'block';
-    } else {
-      document.getElementById('staffBadge').style.display = 'none';
+    if (!response) return;
+
+    rawReservations = response.reservations || [];
+    currentStaff = response.staffName || "";
+
+    // 手動選択用のスタッフリスト作成
+    const manualSelect = document.getElementById('manualStaffSelect');
+    manualSelect.innerHTML = '<option value="">-- あなたの氏名を選択してください --</option>';
+    if (response.allStaffs && response.allStaffs.length > 0) {
+      response.allStaffs.forEach(st => {
+        const opt = document.createElement('option');
+        opt.value = st;
+        opt.innerText = st;
+        manualSelect.appendChild(opt);
+      });
     }
 
-    if (!response || !response.reservations || response.reservations.length === 0) {
-      document.getElementById('loading').innerText = '本日の対象予約（未完了分）は見つかりませんでした。';
-      document.getElementById('loading').style.display = 'block';
+    if (currentStaff !== "") {
+      document.getElementById('staffNameDisplay').innerText = currentStaff + " さん";
+      document.getElementById('staffBadge').style.display = 'inline-block';
+      document.getElementById('manualStaffBox').style.display = 'none';
+      renderReservationList(currentStaff);
+    } else {
+      // LINE ID判別ができなかった場合の手動フォールバック
+      document.getElementById('staffBadge').style.display = 'none';
+      document.getElementById('manualStaffBox').style.display = 'block';
+      renderReservationList("");
+    }
+
+    document.getElementById('reportForm').style.display = 'block';
+  }
+
+  function onManualStaffChange() {
+    const selected = document.getElementById('manualStaffSelect').value;
+    renderReservationList(selected);
+  }
+
+  function renderReservationList(staffFilter) {
+    const resSelect = document.getElementById('targetReservation');
+    resSelect.innerHTML = '<option value="">-- お客様を選択してください --</option>';
+    document.getElementById('collectedAmount').value = "";
+
+    let list = rawReservations;
+
+    // 🎯 担当者フィルターの厳密適用（完全一致比較）
+    if (staffFilter !== "") {
+      const cleanFilter = staffFilter.replace(/\s+/g, '');
+      list = rawReservations.filter(r => {
+        const cleanTarget = (r.staffName || "").replace(/\s+/g, '');
+        return cleanTarget === cleanFilter;
+      });
+    }
+
+    if (list.length === 0) {
+      const opt = document.createElement('option');
+      opt.value = "";
+      opt.innerText = staffFilter !== "" ? "本日の担当予約（未完了）はありません" : "本日の対象予約はありません";
+      resSelect.appendChild(opt);
       return;
     }
 
-    allReservations = response.reservations;
-    const resSelect = document.getElementById('targetReservation');
-    resSelect.innerHTML = '<option value="">-- お客様を選択してください --</option>';
-
-    allReservations.forEach(item => {
+    list.forEach(item => {
       const opt = document.createElement('option');
       opt.value = item.rowIndex;
       const timePart = item.washTime.includes(' ') ? item.washTime.split(' ')[1] : item.washTime;
       opt.innerText = `【${timePart}】 ${item.customerName} 様 (${item.car1})`;
       resSelect.appendChild(opt);
     });
-
-    document.getElementById('reportForm').style.display = 'block';
   }
 
   function onSelectCustomer() {
     const rowIdx = document.getElementById('targetReservation').value;
     if (rowIdx !== "") {
-      const target = allReservations.find(r => String(r.rowIndex) === String(rowIdx));
+      const target = rawReservations.find(r => String(r.rowIndex) === String(rowIdx));
       if (target) document.getElementById('collectedAmount').value = target.totalPrice;
     } else {
       document.getElementById('collectedAmount').value = "";
@@ -126,7 +169,7 @@
     const rowIdx = document.getElementById('targetReservation').value;
     if (rowIdx === "") { alert("お客様を選択してください。"); return; }
 
-    const target = allReservations.find(r => String(r.rowIndex) === String(rowIdx));
+    const target = rawReservations.find(r => String(r.rowIndex) === String(rowIdx));
     const method = document.getElementById('paymentMethod').value;
     const btn = document.getElementById('submitBtn');
     
