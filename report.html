@@ -47,11 +47,12 @@
 </div>
 
 <script>
+  // 🚨 ダブルクォーテーションの中に「デプロイを管理」でコピーした最新URLを貼り付けてください！
   const GAS_WEBAPP_URL = "https://script.google.com/macros/s/AKfycbzQjRvVauGYUbKowJ8oCq281XsGt-5RIcCdk0BGrzc_08mMxeLHM96X8UV2zWSwp3tHVw/exec"; 
+  
   let allReservations = [];
 
   window.onload = function() {
-    // タイムアウト保護付きでLIFF初期化
     try {
       liff.init({ liffId: "2010605097-TOFbC8qQ" }).then(() => {
         if (liff.isLoggedIn()) {
