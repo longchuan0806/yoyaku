@@ -22,7 +22,7 @@
 <div class="card">
   <h2>🚗 本日の作業・集金完了報告</h2>
   
-  <div id="staffBadge" class="staff-badge" style="display:none;">👤 ログイン中: <span id="staffNameDisplay">取得中...</span></div>
+  <div id="staffBadge" class="staff-badge" style="display:none;">👤 担当: <span id="staffNameDisplay">全体表示</span></div>
   <div id="loading" class="loading">本日の予約データを読み込み中...</div>
 
   <form id="reportForm" style="display:none;">
@@ -49,20 +49,22 @@
 <script>
   const GAS_WEBAPP_URL = "https://script.google.com/macros/s/AKfycbzQjRvVauGYubKowJ8oCq281XsGt-5RlcNW2sWZR-xGkgIpWUqFBFXhZBO87fEbkJWPSUgk4j65FfXp2zHrxePbcjT/exec"; 
   let allReservations = [];
-  let currentLineUserId = "";
 
   window.onload = function() {
-    // LIFF初期化してログインユーザーIDを取得
-    liff.init({ liffId: "2010605097-TOFbC8qQ" }).then(() => {
-      if (liff.isLoggedIn()) {
-        liff.getProfile().then(profile => {
-          currentLineUserId = profile.userId;
-          fetchTodayReservationsJSONP(currentLineUserId);
-        }).catch(() => fetchTodayReservationsJSONP(""));
-      } else {
-        fetchTodayReservationsJSONP("");
-      }
-    }).catch(() => fetchTodayReservationsJSONP(""));
+    // タイムアウト保護付きでLIFF初期化
+    try {
+      liff.init({ liffId: "2010605097-TOFbC8qQ" }).then(() => {
+        if (liff.isLoggedIn()) {
+          liff.getProfile().then(profile => {
+            fetchTodayReservationsJSONP(profile.userId);
+          }).catch(() => fetchTodayReservationsJSONP(""));
+        } else {
+          fetchTodayReservationsJSONP("");
+        }
+      }).catch(() => fetchTodayReservationsJSONP(""));
+    } catch(e) {
+      fetchTodayReservationsJSONP("");
+    }
   };
 
   function fetchTodayReservationsJSONP(userId) {
@@ -74,7 +76,7 @@
   function handleReservationData(response) {
     document.getElementById('loading').style.display = 'none';
     
-    if (response.staffName) {
+    if (response && response.staffName) {
       document.getElementById('staffNameDisplay').innerText = response.staffName + " さん";
       document.getElementById('staffBadge').style.display = 'block';
     } else {
